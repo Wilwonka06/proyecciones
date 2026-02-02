@@ -1,5 +1,5 @@
 """
-AUTOMATIZACIÓN COMPLETA - CONTROL DE PAGOS - VERSIÓN CORREGIDA
+AUTOMATIZACIÓN COMPLETA - CONTROL DE PAGOS - VERSIÓN 1.0
 Corrige problemas con macros que ocultan hojas y manejo de columnas
 """
 
@@ -462,6 +462,9 @@ class VentanaProgreso:
 class CopiarArchivo:
     """Clase principal para el procesamiento de archivos - VERSIÓN CORREGIDA"""
     def __init__(self, fecha_filtrado=None, ventana_progreso=None):
+        # Configurar logging primero
+        self.setup_logging()
+        
         # Configuración de rutas
         self.config = configparser.ConfigParser()
         
@@ -526,8 +529,48 @@ class CopiarArchivo:
             'FECHA DE VENCIMIENTO'
         ]
 
+    def setup_logging(self):
+        """Configura el sistema de logging"""
+        try:
+            # Determinar ruta base para logs
+            if getattr(sys, 'frozen', False):
+                base_path = Path(sys.executable).parent
+            else:
+                base_path = Path(__file__).parent
+                
+            log_dir = base_path / "logs"
+            log_dir.mkdir(exist_ok=True)
+            
+            timestamp = datetime.now().strftime("%Y%m%d")
+            log_file = log_dir / f"control_pagos_v1_{timestamp}.log"
+            
+            # Configurar logger
+            handler = logging.FileHandler(log_file, encoding='utf-8')
+            formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+            handler.setFormatter(formatter)
+            
+            self.logger = logging.getLogger('ControlPagosV1')
+            self.logger.setLevel(logging.INFO)
+            
+            # Evitar duplicar handlers
+            if not self.logger.handlers:
+                self.logger.addHandler(handler)
+                
+        except Exception as e:
+            print(f"Error configurando logs: {e}")
+            self.logger = None
+
     def log(self, mensaje, tipo="INFO"):
         """Registra mensajes en consola y en ventana de progreso"""
+        # Registrar en archivo log
+        if self.logger:
+            if tipo == "ERROR":
+                self.logger.error(mensaje)
+            elif tipo == "WARN":
+                self.logger.warning(mensaje)
+            else:
+                self.logger.info(mensaje)
+
         simbolos = {
             "INFO": "ℹ",
             "OK": "✓",
@@ -1255,4 +1298,29 @@ def main():
         messagebox.showerror("Error Fatal", f"Error inesperado:\n\n{str(e)}")
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except Exception as e:
+        # Manejo de errores fatales de último nivel
+        import traceback
+        error_msg = traceback.format_exc()
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        
+        # Intentar guardar en archivo de crash
+        try:
+            with open("CRASH_LOG.txt", "a", encoding='utf-8') as f:
+                f.write(f"\n{'='*50}\n")
+                f.write(f"FECHA: {timestamp}\n")
+                f.write(f"ERROR:\n{error_msg}\n")
+                f.write(f"{'='*50}\n")
+        except:
+            pass
+            
+        # Mostrar error al usuario
+        try:
+            root = tk.Tk()
+            root.withdraw()
+            messagebox.showerror("Error Fatal", f"Ocurrió un error crítico:\n\n{str(e)}\n\nConsulte CRASH_LOG.txt")
+        except:
+            print(f"Error fatal: {e}")
+            input("Presione Enter para salir...")
