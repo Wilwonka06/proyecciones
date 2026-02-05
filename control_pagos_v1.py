@@ -1,9 +1,5 @@
 """
 AUTOMATIZACIÓN COMPLETA - CONTROL DE PAGOS - VERSIÓN 1.0
-Correcciones:
-- Soluciona error de encoding con caracteres especiales
-- Manejo robusto de errores de codificación
-- Rutas configurables desde archivo config
 """
 
 from enum import nonmember
