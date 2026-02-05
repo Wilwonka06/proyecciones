@@ -1,0 +1,62 @@
+2026-02-04 07:45:19,337 - INFO - Opción seleccionada: CREAR SOLO PROYECCIÓN
+2026-02-04 07:45:19,360 - ERROR - No se encuentra el archivo original
+2026-02-04 08:02:43,832 - INFO - Opción seleccionada: CREAR SOLO PROYECCIÓN
+2026-02-04 08:02:43,865 - ERROR - No se encuentra el archivo original
+2026-02-04 08:03:44,237 - INFO - Opción seleccionada: CREAR SOLO PROYECCIÓN
+2026-02-04 08:03:44,282 - ERROR - No se encuentra el archivo original
+2026-02-04 08:04:45,231 - INFO - Opción seleccionada: CREAR SOLO PROYECCIÓN
+2026-02-04 08:04:45,280 - ERROR - No se encuentra el archivo original
+2026-02-04 08:04:57,402 - INFO - Opción seleccionada: CREAR SOLO PROYECCIÓN
+2026-02-04 08:04:57,434 - ERROR - No se encuentra el archivo original
+2026-02-04 08:05:55,941 - INFO - Opción seleccionada: CREAR SOLO PROYECCIÓN
+2026-02-04 08:05:55,968 - ERROR - No se encuentra el archivo original
+2026-02-04 08:07:00,758 - INFO - Opción seleccionada: CREAR SOLO PROYECCIÓN
+2026-02-04 08:07:00,785 - ERROR - No se encuentra el archivo original
+2026-02-04 08:55:35,897 - INFO - Opción seleccionada: CREAR SOLO PROYECCIÓN
+2026-02-04 08:55:35,945 - INFO - Fecha de proyección: 11/02/2026
+2026-02-04 08:55:35,948 - INFO - Copiando archivo completo como .xlsx...
+2026-02-04 08:55:38,079 - INFO - Abriendo archivo: 00.CONTROL DE PAGOS 2026.xlsm
+2026-02-04 08:55:38,760 - INFO - Haciendo visibles todas las hojas...
+2026-02-04 08:55:38,843 - INFO -   ✓ 'Principal' visible
+2026-02-04 08:55:38,845 - WARNING -   ⚠ No se pudo hacer visible 'Principal': 'charmap' codec can't encode character '\u2713' in position 4: character maps to <undefined>
+2026-02-04 08:55:38,847 - ERROR - ERROR al copiar archivo: 'charmap' codec can't encode character '\u26a0' in position 6: character maps to <undefined>
+2026-02-04 08:55:38,901 - ERROR - ERROR CRÍTICO: 'charmap' codec can't encode character '\u26a0' in position 6: character maps to <undefined>
+2026-02-04 09:01:20,151 - INFO - Opción seleccionada: CREAR SOLO PROYECCIÓN
+2026-02-04 09:01:20,224 - INFO - Fecha de proyección: 11/02/2026
+2026-02-04 09:01:20,226 - INFO - Copiando archivo completo como .xlsx...
+2026-02-04 09:01:22,568 - INFO - Abriendo archivo: 00.CONTROL DE PAGOS 2026.xlsm
+2026-02-04 09:01:23,226 - INFO - Haciendo visibles todas las hojas...
+2026-02-04 09:01:23,293 - INFO -   ✓ 'Principal' visible
+2026-02-04 09:01:23,294 - WARNING -   ⚠ No se pudo hacer visible 'Principal': 'charmap' codec can't encode character '\u2713' in position 4: character maps to <undefined>
+2026-02-04 09:01:23,297 - ERROR - ERROR al copiar archivo: 'charmap' codec can't encode character '\u26a0' in position 6: character maps to <undefined>
+2026-02-04 09:01:23,371 - ERROR - ERROR CRÍTICO: 'charmap' codec can't encode character '\u26a0' in position 6: character maps to <undefined>
+2026-02-04 09:30:34,553 - INFO - Opción seleccionada: CREAR SOLO PROYECCIÓN
+2026-02-04 09:30:34,585 - INFO - Fecha de proyección: 11/02/2026
+2026-02-04 09:30:34,587 - INFO - Copiando archivo completo como .xlsx...
+2026-02-04 09:30:35,618 - INFO - Abriendo archivo: 00.CONTROL DE PAGOS 2026.xlsm
+2026-02-04 09:30:36,005 - INFO - Haciendo visibles todas las hojas...
+2026-02-04 09:30:36,048 - INFO -   ✓ 'Principal' visible
+2026-02-04 09:30:36,049 - WARNING -   ⚠ No se pudo hacer visible 'Principal': 'charmap' codec can't encode character '\u2713' in position 4: character maps to <undefined>
+2026-02-04 09:30:36,051 - ERROR - ERROR al copiar archivo: 'charmap' codec can't encode character '\u26a0' in position 6: character maps to <undefined>
+2026-02-04 09:30:36,084 - ERROR - ERROR CRÍTICO: 'charmap' codec can't encode character '\u26a0' in position 6: character maps to <undefined>
+2026-02-04 10:58:49,913 - INFO - Opción seleccionada: CREAR SOLO PROYECCIÓN
+2026-02-04 10:58:49,952 - INFO - Fecha de proyección: 11/02/2026
+2026-02-04 10:58:49,954 - INFO - Copiando archivo completo como .xlsx...
+2026-02-04 10:58:52,980 - INFO - Abriendo archivo: 00.CONTROL DE PAGOS 2026.xlsm
+2026-02-04 10:58:55,143 - INFO - Haciendo visibles todas las hojas...
+2026-02-04 10:58:55,220 - INFO -   ✓ 'Principal' visible
+2026-02-04 10:58:55,222 - WARNING -   ⚠ No se pudo hacer visible 'Principal': 'charmap' codec can't encode character '\u2713' in position 4: character maps to <undefined>
+2026-02-04 10:58:55,224 - ERROR - ERROR al copiar archivo: 'charmap' codec can't encode character '\u26a0' in position 6: character maps to <undefined>
+2026-02-04 10:58:55,316 - ERROR - ERROR CRÍTICO: 'charmap' codec can't encode character '\u26a0' in position 6: character maps to <undefined>
+2026-02-04 11:02:43,502 - INFO - Hello World
+2026-02-04 11:02:43,503 - INFO - Test ✓ and ⚠
+2026-02-04 11:02:43,503 - WARNING - Test ✓ and ⚠
+2026-02-04 11:13:20,017 - INFO - Hello World
+2026-02-04 11:13:20,017 - INFO - Test ✓ and ⚠
+2026-02-04 11:13:20,018 - WARNING - Test ✓ and ⚠
+2026-02-04 11:13:28,922 - INFO - Hello World
+2026-02-04 11:13:28,923 - INFO - Test ✓ and ⚠
+2026-02-04 11:13:28,924 - WARNING - Test ✓ and ⚠
+2026-02-04 11:14:45,974 - INFO - Hello World
+2026-02-04 11:14:45,975 - INFO - Test ✓ and ⚠
+2026-02-04 11:14:45,975 - WARNING - Test ✓ and ⚠

@@ -1,4 +1,4 @@
-# 📖 Guía Rápida de Usuario - Control de Pagos GCO v1.2
+# 📖 Guía Rápida de Usuario - Control de Pagos GCO v2.0
 
 ## 🚀 Inicio Rápido
 
@@ -128,27 +128,27 @@ Si encuentra un error después de generar la proyección:
 ## 🔍 Verificación de Resultados
 
 ### Después de la Opción 1:
-✅ Verificar que existe el archivo en:
+ Verificar que existe el archivo en:
 ```
 O:\Finanzas\Info Bancos\Pagos Internacionales\
 PROYECCION PAGOS SEMANAL Y MENSUAL\
 AÑO 2026\[MES]\[DD MES YYYY].xlsx
 ```
 
-✅ Abrir el archivo y verificar:
+ Abrir el archivo y verificar:
 - Hoja "Control_Pagos" con datos filtrados
 - Hoja "[MES DD]" con la proyección formateada
 - Agrupaciones por Importador y Proveedor
 - Totales calculados correctamente
 
 ### Después de la Opción 2 o 3:
-✅ Verificar el archivo final:
+ Verificar el archivo final:
 ```
 O:\Finanzas\Info Bancos\Pagos Internacionales\
 CONTROL PAGOS.xlsx
 ```
 
-✅ Revisar en la hoja "Pagos Importación":
+ Revisar en la hoja "Pagos Importación":
 - Nuevos registros agregados al final
 - Fecha de pago correcta
 - Todos los campos completos
@@ -158,7 +158,7 @@ CONTROL PAGOS.xlsx
 ### Error: "No se encuentra el archivo original"
 **Causa:** El archivo base no está en la ubicación esperada
 **Solución:** 
-- Verificar que existe: `O:\00.CONTROL DE PAGOS 2026 1.xlsm`
+- Verificar que existe: `O:\00.CONTROL DE PAGOS 2026.xlsm`
 - Verificar que la unidad O: está mapeada
 
 ### Error: "No se encontró hoja Control_Pagos"
@@ -188,7 +188,7 @@ Si encuentra problemas no listados aquí:
 2. Tomar captura de pantalla del error
 3. Contactar al equipo de TI con la información del error
 
-## 💡 Consejos Pro
+## 💡 Consejos
 
 1. **Ejecute la Opción 1 los martes** para tener la proyección lista para revisar el miércoles
 2. **Use la Opción 2 después de aprobar** la proyección con su supervisor
@@ -198,6 +198,6 @@ Si encuentra problemas no listados aquí:
 
 ---
 
-**Versión:** 1.2  
-**Última actualización:** Febrero 2026  
-**Desarrollado por:** Equipo de Automatización GCO
+**Versión:** 2.0  
+**Última actualización:** Febrero 2026
+**Desarrollado por: Wilson David Rojas Palacios

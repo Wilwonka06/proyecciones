@@ -1,10 +1,10 @@
-# Control de Pagos GCO - Versión 1.2
+# Control de Pagos GCO - Versión 2.0
 
 ## 📋 Descripción
 
 Sistema automatizado para la gestión de proyecciones de pagos y actualización del archivo de control de pagos final.
 
-## 🆕 Nuevas Funcionalidades (v1.2)
+## 🆕 Nuevas Funcionalidades (v2.0)
 
 ### Opciones de Proceso Independientes
 
@@ -143,8 +143,7 @@ o ejecute el proceso completo (Opción 3).
 ```
 Control de Pagos/
 │
-├── control_pagos_1_2.py          # Archivo principal (nuevo)
-├── control_pagos_1_1.py          # Versión anterior
+├── control_pagos_v1.py           # Archivo principal
 ├── compilar.bat                   # Script de compilación
 ├── config.ini                     # Configuración de rutas (opcional)
 ├── icon.ico                       # Icono de la aplicación
@@ -157,7 +156,7 @@ Control de Pagos/
 
 ```ini
 [RUTAS]
-ArchivoOrigen = O:\00.CONTROL DE PAGOS 2026 1.xlsm
+ArchivoOrigen = O:\00.CONTROL DE PAGOS 2026.xlsm
 CarpetaIntermedia = O:\Finanzas\Info Bancos\Pagos Internacionales\PROYECCION PAGOS SEMANAL Y MENSUAL
 ArchivoFinal = O:\Finanzas\Info Bancos\Pagos Internacionales\CONTROL PAGOS.xlsx
 ```
@@ -170,7 +169,7 @@ ArchivoFinal = O:\Finanzas\Info Bancos\Pagos Internacionales\CONTROL PAGOS.xlsx
 pip install -r requirements.txt
 
 # Ejecutar
-python control_pagos_1_2.py
+python control_pagos_v1.py
 ```
 
 ### Compilar Ejecutable
@@ -239,7 +238,7 @@ compilar.bat
 
 ## 📝 Registro de Cambios
 
-### Versión 1.2 (Actual)
+### Versión 2.0 (Actual)
 -  Añadido selector de proceso (3 opciones)
 -  Implementada validación de archivo existente para Opción 2
 -  Mejorada interfaz de usuario con secciones visuales

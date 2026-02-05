@@ -1,11 +1,11 @@
 @echo off
 REM =====================================================
-REM SCRIPT DE COMPILACION - CONTROL DE PAGOS GCO v1.2
+REM SCRIPT DE COMPILACION - CONTROL DE PAGOS GCO v2.0
 REM =====================================================
 echo.
 echo ========================================
 echo   COMPILADOR DE CONTROL DE PAGOS GCO
-echo   VERSION 1.2
+echo   VERSION 2.0  
 echo ========================================
 echo.
 
@@ -64,7 +64,7 @@ pyinstaller --onefile %modo% ^
     --hidden-import=openpyxl ^
     --hidden-import=pandas ^
     --hidden-import=tkcalendar ^
-    control_pagos_1_2.py
+    control_pagos_v1.py
 
 if errorlevel 1 (
     echo.
@@ -76,13 +76,13 @@ if errorlevel 1 (
 
 echo.
 echo ========================================
-echo   COMPILACION EXITOSA - VERSION 1.2
+echo   COMPILACION EXITOSA - VERSION 2.0
 echo ========================================
 echo.
 echo El ejecutable se encuentra en:
 echo %cd%\dist\ControlPagosGCO.exe
 echo.
-echo CAMBIOS EN VERSION 1.2:
+echo CAMBIOS EN VERSION 2.0:
 echo - Selector de proceso (3 opciones)
 echo - Validacion de archivo existente
 echo - Mensajes personalizados
