@@ -1,91 +1,28 @@
+"""
+PROCESO SEMANAL - Control de Pagos
+Lógica específica para proyecciones semanales
+"""
 from pathlib import Path
 from datetime import datetime, timedelta
-import locale
 import tkinter as tk
-from tkinter import ttk, messagebox, filedialog
+from tkinter import ttk, messagebox
 from tkcalendar import DateEntry
-import configparser
-import sys
 import time
-import logging
 import traceback
 import stat
+import sys
 
-# --- PATCH: Silenciar errores de compatibilidad de Pandas/Dateutil en consola ---
-class StderrFilter:
-    def __init__(self, original_stderr):
-        self.original_stderr = original_stderr
-        self.buffer = ""
-
-    def write(self, s):
-        self.buffer += s
-        # Procesamos si hay salto de línea o el buffer es muy grande
-        if "\n" in self.buffer or len(self.buffer) > 500:
-            self.process_buffer()
-
-    def flush(self):
-        if self.buffer:
-            self.process_buffer(force=True)
-        try:
-            self.original_stderr.flush()
-        except:
-            pass
-            
-    def process_buffer(self, force=False):
-        # Firmas del error que queremos silenciar
-        error_signatures = [
-            "pandas._libs.tslibs", 
-            "total_seconds", 
-            "_localize_tso",
-            "AttributeError: 'NoneType' object"
-        ]
-        
-        # Si el buffer contiene alguna firma, lo descartamos silenciosamente
-        if any(sig in self.buffer for sig in error_signatures):
-            self.buffer = ""
-            return
-
-        # Fragmentos que inician bloques de error (sospechosos de ser parte del error a silenciar)
-        suspicious_starts = [
-            "Exception ignored in:", 
-            "Traceback (most recent call last):", 
-            "AttributeError:"
-        ]
-        
-        # Si contiene un inicio sospechoso pero no confirmamos la firma aún...
-        is_suspicious = any(start in self.buffer for start in suspicious_starts)
-        
-        # Si es sospechoso, corto y no forzado, esperamos más datos (no imprimimos aún)
-        if is_suspicious and len(self.buffer) < 300 and not force:
-            return
-
-        # Si no es el error silenciado, imprimimos
-        try:
-            self.original_stderr.write(self.buffer)
-        except:
-            pass
-        finally:
-            self.buffer = ""
-
-# Aplicar el filtro a stderr
-sys.stderr = StderrFilter(sys.stderr)
-
-# Configuración de español
-try:
-    locale.setlocale(locale.LC_TIME, 'Spanish_Spain.1252')  # Windows
-except locale.Error:
-    try:
-        locale.setlocale(locale.LC_TIME, 'es_ES.UTF-8')  # Linux
-    except locale.Error:
-        pass
 
 def obtener_ruta_recurso(nombre_archivo: str) -> Path:
+    """Obtiene ruta de recurso en ejecutable o desarrollo"""
     base_dir = getattr(sys, "_MEIPASS", None)
     if base_dir:
         return Path(base_dir) / nombre_archivo
     return Path(__file__).resolve().parent / nombre_archivo
 
+
 def aplicar_icono_ventana(ventana: tk.Tk) -> None:
+    """Aplica ícono a ventana si existe"""
     try:
         icon_path = obtener_ruta_recurso("icon.ico")
         if icon_path.exists():
@@ -93,90 +30,8 @@ def aplicar_icono_ventana(ventana: tk.Tk) -> None:
     except Exception:
         pass
 
-class ConfiguradorRutas:
-    """Manejador de configuración de rutas"""
 
-    def __init__(self):
-        self.config_file = Path("config_pagos.ini")
-        self.config = configparser.ConfigParser()
-        
-    def cargar_o_crear_config(self):
-        """Carga configuración existente o crea una nueva"""
-        if self.config_file.exists():
-            self.config.read(self.config_file, encoding='utf-8')
-            return True
-        else:
-            return self.crear_configuracion_inicial()
-    
-    def crear_configuracion_inicial(self):
-        """Crea configuración inicial solicitando rutas al usuario"""
-        root = tk.Tk()
-        aplicar_icono_ventana(root)
-        root.withdraw()
-        
-        messagebox.showinfo(
-            "Primera Configuración",
-            "Por favor, seleccione las rutas necesarias para el programa."
-        )
-        
-        # Solicitar archivo origen
-        messagebox.showinfo("Paso 1", "Seleccione el archivo CONTROL DE PAGOS de comercio")
-        archivo_origen = filedialog.askopenfilename(
-            title="Seleccionar CONTROL DE PAGOS.xlsm",
-            filetypes=[("Excel Macro", "*.xlsm"), ("Todos", "*.*")]
-        )
-        
-        if not archivo_origen:
-            messagebox.showerror("Error", "Debe seleccionar el archivo origen.")
-            return False
-        
-        # Solicitar carpeta de proyecciones
-        messagebox.showinfo("Paso 2", "Seleccione la carpeta donde se guardarán las PROYECCIONES\n(PROYECCION PAGOS SEMANAL Y MENSUAL)")
-        carpeta_proyecciones = filedialog.askdirectory(
-            title="Seleccionar carpeta de PROYECCIONES"
-        )
-        
-        if not carpeta_proyecciones:
-            messagebox.showerror("Error", "Debe seleccionar la carpeta de proyecciones.")
-            return False
-        
-        # Solicitar archivo final
-        messagebox.showinfo("Paso 3", "Seleccione el archivo CONTROL PAGOS.xlsx - archivo final \n(En Pagos Internacionales)")
-        archivo_final = filedialog.askopenfilename(
-            title="Seleccionar CONTROL PAGOS.xlsx",
-            filetypes=[("Excel", "*.xlsx"), ("Todos", "*.*")],
-            initialdir=carpeta_proyecciones
-        )
-        
-        if not archivo_final:
-            messagebox.showerror("Error", "Debe seleccionar el archivo final.")
-            return False
-        
-        # Guardar configuración
-        self.config['RUTAS'] = {
-            'archivo_origen': archivo_origen,
-            'carpeta_proyecciones': carpeta_proyecciones,
-            'archivo_final': archivo_final
-        }
-        
-        with open(self.config_file, 'w', encoding='utf-8') as f:
-            self.config.write(f)
-        
-        messagebox.showinfo("Configuración Guardada", 
-                          f"La configuración se ha guardado en:\n{self.config_file.absolute()}")
-        
-        root.destroy()
-        return True
-    
-    def obtener_rutas(self):
-        """Obtiene las rutas configuradas"""
-        return {
-            'origen': Path(self.config['RUTAS']['archivo_origen']),
-            'proyecciones': Path(self.config['RUTAS']['carpeta_proyecciones']),
-            'final': Path(self.config['RUTAS']['archivo_final'])
-        }
-
-class InterfazModerna:
+class InterfazSemanal:
     """
     Interfaz gráfica moderna para seleccionar la fecha de filtrado (Proyección)
     """
@@ -506,7 +361,7 @@ class VentanaProgreso:
         self.progress.stop()
         self.root.destroy()
 
-class CopiarArchivo:
+class ProcesadorSemanal:
     """Clase principal para procesar archivos"""
 
     marcas_global = ['AMERICANINO', 'ESPRIT', 'CHEVIGNON']
@@ -708,7 +563,7 @@ class CopiarArchivo:
                 pythoncom.CoUninitialize() 
             except: pass
         
-    def leer_datos_control_pagos(self, ruta_archivo):
+    def leer_datos_proceso_semanal(self, ruta_archivo):
         """Lee datos del archivo Excel con manejo robusto de encoding"""
         self.log("Leyendo datos del archivo", "INFO")
         
@@ -1387,7 +1242,7 @@ class CopiarArchivo:
             # Esperar un momento para liberar el archivo
             time.sleep(2)
             
-            df_original = self.leer_datos_control_pagos(ruta_archivo_nuevo)
+            df_original = self.leer_datos_proceso_semanal(ruta_archivo_nuevo)
             if df_original is None:
                 return None
             
@@ -1424,92 +1279,3 @@ class CopiarArchivo:
             traceback.print_exc()
             messagebox.showerror("Error", f"Ocurrió un error:\n\n{str(e)}")
             return None
-
-def main():
-    """Función principal con bucle para repetir procesos"""
-    configurador = ConfiguradorRutas()
-    if not configurador.cargar_o_crear_config():
-        return
-    
-    rutas = configurador.obtener_rutas()
-    
-    # Bucle principal - permite procesar múltiples fechas sin cerrar la aplicación
-    while True:
-        try:
-            # Mostrar ventana de selección de fecha
-            interfaz = InterfazModerna()
-            interfaz.crear_ventana()
-            
-            # Si el usuario cancela en la interfaz principal, salir del programa
-            if not interfaz.ejecutar_proceso:
-                break
-            
-            # Confirmar ejecución
-            if not messagebox.askyesno(
-                "          -------------          Confirmar Ejecución          ------------- \n\n",
-                "Antes de continuar, asegúrese de:\n\n"
-                "   ✓ Haber actualizado el archivo 'CONTROL DE PAGOS.xlsm'\n"
-                "   ✓ Haber guardado todos los cambios\n"
-                "   ✓ Cerrar el archivo si está abierto\n\n"
-                "¿Desea continuar?"
-            ):
-                continue
-            
-            # Crear ventana de progreso
-            ventana_prog = VentanaProgreso()
-            
-            try:
-                # Ejecutar proceso
-                copiador = CopiarArchivo(
-                    fecha_filtrado=interfaz.fecha_seleccionada,
-                    ventana_progreso=ventana_prog,
-                    rutas_config=rutas
-                )
-                resultado = copiador.ejecutar_proceso()
-                
-                # Cerrar ventana de progreso
-                ventana_prog.cerrar()
-                
-            except Exception as e:
-                ventana_prog.cerrar()
-                messagebox.showerror("Error Fatal", f"Error inesperado:\n\n{str(e)}")
-            
-            # Preguntar si desea procesar otra fecha
-            if not messagebox.askyesno(
-                "Proceso Completado",
-                "¿Desea procesar otra fecha?"
-            ):
-                # Usuario no quiere continuar, salir del programa
-                break
-        
-        except Exception as e:
-            messagebox.showerror("Error de Configuración", f"Error al iniciar:\n\n{str(e)}")
-            # En caso de error, preguntar si quiere intentar de nuevo
-            if not messagebox.askyesno("Error", "¿Desea intentar nuevamente?"):
-                break
-
-if __name__ == "__main__":
-    try:
-        main()
-    except Exception as e:
-        import traceback
-        error_msg = traceback.format_exc()
-        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        
-        try:
-            with open("CRASH_LOG.txt", "a", encoding='utf-8') as f:
-                f.write(f"\n{'='*50}\n")
-                f.write(f"FECHA: {timestamp}\n")
-                f.write(f"ERROR:\n{error_msg}\n")
-                f.write(f"{'='*50}\n")
-        except:
-            pass
-        
-        try:
-            root = tk.Tk()
-            aplicar_icono_ventana(root)
-            root.withdraw()
-            messagebox.showerror("Error Fatal", f"Ocurrió un error crítico:\n\n{str(e)}\n\nConsulte CRASH_LOG.txt")
-        except:
-            print(f"Error fatal: {e}")
-            input("Presione Enter para salir...")

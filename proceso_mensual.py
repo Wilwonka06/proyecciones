@@ -1,83 +1,27 @@
+"""
+PROCESO MENSUAL - Control de Pagos
+Lógica específica para proyecciones mensuales
+"""
 from pathlib import Path
 from datetime import datetime, timedelta
-import locale
 import tkinter as tk
-from tkinter import ttk, messagebox, filedialog
-# from tkcalendar import DateEntry # Eliminado para usar selectores nativos
-import configparser
-import sys
+from tkinter import ttk, messagebox
 import time
-import logging
 import traceback
 import stat
+import sys
 
-# --- PATCH: Silenciar errores de compatibilidad de Pandas/Dateutil en consola ---
-class StderrFilter:
-    def __init__(self, original_stderr):
-        self.original_stderr = original_stderr
-        self.buffer = ""
-
-    def write(self, s):
-        self.buffer += s
-        if "\n" in self.buffer or len(self.buffer) > 500:
-            self.process_buffer()
-
-    def flush(self):
-        if self.buffer:
-            self.process_buffer(force=True)
-        try:
-            self.original_stderr.flush()
-        except:
-            pass
-            
-    def process_buffer(self, force=False):
-        error_signatures = [
-            "pandas._libs.tslibs", 
-            "total_seconds", 
-            "_localize_tso",
-            "AttributeError: 'NoneType' object"
-        ]
-        
-        if any(sig in self.buffer for sig in error_signatures):
-            self.buffer = ""
-            return
-
-        suspicious_starts = [
-            "Exception ignored in:", 
-            "Traceback (most recent call last):", 
-            "AttributeError:"
-        ]
-        
-        is_suspicious = any(start in self.buffer for start in suspicious_starts)
-        
-        if is_suspicious and len(self.buffer) < 300 and not force:
-            return
-
-        try:
-            self.original_stderr.write(self.buffer)
-        except:
-            pass
-        finally:
-            self.buffer = ""
-
-sys.stderr = StderrFilter(sys.stderr)
-
-# Configuración de español
-try:
-    locale.setlocale(locale.LC_TIME, 'Spanish_Spain.1252')  # Windows
-except locale.Error:
-    try:
-        locale.setlocale(locale.LC_TIME, 'es_ES.UTF-8')  # Linux
-    except locale.Error:
-        pass
 
 def obtener_ruta_recurso(nombre_archivo: str) -> Path:
+    """Obtiene ruta de recurso en ejecutable o desarrollo"""
     base_dir = getattr(sys, "_MEIPASS", None)
     if base_dir:
         return Path(base_dir) / nombre_archivo
     return Path(__file__).resolve().parent / nombre_archivo
 
+
 def aplicar_icono_ventana(ventana: tk.Tk) -> None:
+    """Aplica ícono a ventana si existe"""
     try:
         icon_path = obtener_ruta_recurso("icon.ico")
         if icon_path.exists():
@@ -85,85 +29,8 @@ def aplicar_icono_ventana(ventana: tk.Tk) -> None:
     except Exception:
         pass
 
-class ConfiguradorRutas:
-    """Manejador de configuración de rutas"""
 
-    def __init__(self):
-        self.config_file = Path("config_pagos.ini")
-        self.config = configparser.ConfigParser()
-        
-    def cargar_o_crear_config(self):
-        if self.config_file.exists():
-            self.config.read(self.config_file, encoding='utf-8')
-            return True
-        else:
-            return self.crear_configuracion_inicial()
-    
-    def crear_configuracion_inicial(self):
-        root = tk.Tk()
-        aplicar_icono_ventana(root)
-        root.withdraw()
-        
-        messagebox.showinfo(
-            "Primera Configuración",
-            "Por favor, seleccione las rutas necesarias para el programa."
-        )
-        
-        messagebox.showinfo("Paso 1", "Seleccione el archivo CONTROL DE PAGOS de comercio")
-        archivo_origen = filedialog.askopenfilename(
-            title="Seleccionar CONTROL DE PAGOS.xlsm",
-            filetypes=[("Excel Macro", "*.xlsm"), ("Todos", "*.*")]
-        )
-        
-        if not archivo_origen:
-            messagebox.showerror("Error", "Debe seleccionar el archivo origen.")
-            return False
-        
-        messagebox.showinfo("Paso 2", "Seleccione la carpeta donde se guardarán las PROYECCIONES")
-        carpeta_proyecciones = filedialog.askdirectory(
-            title="Seleccionar carpeta de PROYECCIONES"
-        )
-        
-        if not carpeta_proyecciones:
-            messagebox.showerror("Error", "Debe seleccionar la carpeta de proyecciones.")
-            return False
-        
-        # Aunque para el reporte mensual no se use explícitamente para anexar,
-        # mantenemos la configuración para compatibilidad con el sistema existente.
-        messagebox.showinfo("Paso 3", "Seleccione el archivo CONTROL PAGOS.xlsx - archivo final")
-        archivo_final = filedialog.askopenfilename(
-            title="Seleccionar CONTROL PAGOS.xlsx",
-            filetypes=[("Excel", "*.xlsx"), ("Todos", "*.*")],
-            initialdir=carpeta_proyecciones
-        )
-        
-        if not archivo_final:
-            messagebox.showerror("Error", "Debe seleccionar el archivo final.")
-            return False
-        
-        self.config['RUTAS'] = {
-            'archivo_origen': archivo_origen,
-            'carpeta_proyecciones': carpeta_proyecciones,
-            'archivo_final': archivo_final
-        }
-        
-        with open(self.config_file, 'w', encoding='utf-8') as f:
-            self.config.write(f)
-        
-        messagebox.showinfo("Configuración Guardada", 
-                          f"La configuración se ha guardado en:\n{self.config_file.absolute()}")
-        
-        root.destroy()
-        return True
-    
-    def obtener_rutas(self):
-        return {
-            'origen': Path(self.config['RUTAS']['archivo_origen']),
-            'proyecciones': Path(self.config['RUTAS']['carpeta_proyecciones']),
-            'final': Path(self.config['RUTAS']['archivo_final'])
-        }
-
-class InterfazModerna:
+class InterfazMensual:
     """
     Interfaz gráfica para seleccionar el MES (a través de una fecha)
     """
@@ -171,7 +38,7 @@ class InterfazModerna:
         self.fecha_seleccionada = None
         self.ejecutar_proceso = False
         
-        self.COLOR_PRIMARIO = "#8E44AD" # Morado para diferenciar del semanal
+        self.COLOR_PRIMARIO = "#3498DB" # Morado para diferenciar del semanal
         self.COLOR_SECUNDARIO = "#9B59B6"
         self.COLOR_ACENTO = "#2ECC71"
         self.COLOR_FONDO = "#ECF0F1"
@@ -418,7 +285,7 @@ class VentanaProgreso:
         self.progress.stop()
         self.root.destroy()
 
-class CopiarArchivo:
+class ProcesadorMensual:
     def __init__(self, fecha_filtrado, ventana_progreso, rutas_config):
         self.fecha_filtrado = fecha_filtrado
         self.ventana_progreso = ventana_progreso
@@ -574,7 +441,7 @@ class CopiarArchivo:
                 except: pass
             pythoncom.CoUninitialize()
 
-    def leer_datos_control_pagos(self, ruta_archivo):
+    def leer_datos_proceso_mensual(self, ruta_archivo):
         self.log("Leyendo datos...", "INFO")
         try:
             pythoncom.CoInitialize()
@@ -680,7 +547,34 @@ class CopiarArchivo:
                     df_resultado[col_dest] = df[col_origen_posibles]
                 else:
                     df_resultado[col_dest] = ''
-                    
+        
+        # Normalizar nombres de MARCA (Igual que en semanal)
+        if 'MARCA' in df_resultado.columns:
+            def normalizar_marca(valor):
+                valor = str(valor).strip()
+
+                if 'COMODIN S.A.S - ' in valor:
+                    valor = valor.replace('COMODIN S.A.S - ', '')
+                
+                # Normalizar nombres 
+                valor_upper = valor.upper()
+                if 'NAF' in valor_upper:
+                    return 'NAF NAF'
+                elif 'ESPRIT' in valor_upper:
+                    return 'ESPRIT'
+                elif 'CHEVI' in valor_upper:
+                    return 'CHEVIGNON'
+                elif 'AMERICANINO' in valor_upper:
+                    return 'AMERICANINO'
+                elif 'RIFLE' in valor_upper:
+                    return 'RIFLE'
+                elif 'AEO' in valor_upper:
+                    return 'AEO'
+                
+                return valor
+
+            df_resultado['MARCA'] = df_resultado['MARCA'].apply(normalizar_marca)
+            
         # Limpiezas numéricas
         cols_numericas = ['VALOR FACTURA O PROFORMA', 'VALOR NOTA CRÉDITO', 'VALOR A PAGAR', 'TRM MIGO']
         for col in cols_numericas:
@@ -710,12 +604,18 @@ class CopiarArchivo:
     def agrupar_y_calcular(self, df):
         self.log("Agrupando por Semana y Proveedor...", "PROCESO")
         
-        # 1. Determinar Semana
-        # Usamos ISO calendar week
+        # 1. Determinar Semana (ISO)
         if 'FECHA DE VENCIMIENTO' in df.columns and not df['FECHA DE VENCIMIENTO'].isnull().all():
-            df['Semana'] = df['FECHA DE VENCIMIENTO'].dt.isocalendar().week
+            df['Semana_Abs'] = df['FECHA DE VENCIMIENTO'].dt.isocalendar().week
         else:
-            df['Semana'] = 0
+            df['Semana_Abs'] = 0
+            
+        # Mapear a semanas relativas del mes (1, 2, 3...)
+        # Esto corrige que aparezcan semanas 6, 7, 8... en febrero
+        semanas_unicas = sorted(df['Semana_Abs'].unique())
+        mapa_semanas = {s: i+1 for i, s in enumerate(semanas_unicas)}
+        df['Semana'] = df['Semana_Abs'].map(mapa_semanas)
+        df.drop(columns=['Semana_Abs'], inplace=True)
             
         # Ordenar por Semana, IMPORTADOR y luego Proveedor
         df = df.sort_values(by=['Semana', 'IMPORTADOR', 'PROVEEDOR']).reset_index(drop=True)
@@ -780,7 +680,7 @@ class CopiarArchivo:
             
             fila_total_sem = {c: '' for c in df.columns}
             # Etiqueta en columna anterior a VALOR A PAGAR (VALOR NOTA CRÉDITO)
-            fila_total_sem['VALOR NOTA CRÉDITO'] = f"TOTAL SEMANA {semana}"
+            fila_total_sem['PROVEEDOR'] = f"TOTAL SEMANA {semana}" 
             fila_total_sem['VALOR A PAGAR'] = formula_semana
             fila_total_sem['_TIPO'] = 'TOTAL_SEMANA'
             filas_resultado.append(fila_total_sem)
@@ -794,7 +694,7 @@ class CopiarArchivo:
             filas_resultado.append(fila_blanco.copy())
             fila_actual += 3
             
-        return pd.DataFrame(filas_resultado)
+        return pd.DataFrame(filas_resultado), df
 
     def _convertir_fecha_excel(self, val):
         """Convierte valores a datetime de Python seguros para Excel"""
@@ -814,19 +714,30 @@ class CopiarArchivo:
             py_dt = d.to_pydatetime().replace(tzinfo=None)
             
             # Excel no soporta fechas antes de 1900
+            # Devolver como string formateado dd/mm/yyyy
             if py_dt.year < 1900:
                 return py_dt.strftime("%d/%m/%Y")
                 
             return py_dt
         except:
+            # En caso de cualquier error, devolver como string
             return str(val)
 
-    def guardar_proyeccion_com(self, ruta_archivo, df_agrupado, nombre_hoja):
+    def guardar_proyeccion_com(self, ruta_archivo, df_agrupado, nombre_hoja, df_origen=None):
         self.log("Escribiendo Excel...", "INFO")
         pythoncom.CoInitialize()
-        excel = win32com.DispatchEx("Excel.Application")
-        excel.Visible = False
-        excel.DisplayAlerts = False
+        # Usar Dispatch en lugar de DispatchEx para intentar reutilizar instancia si es posible,
+        # o mantener DispatchEx si queremos aislamiento. 
+        # El error "La llamada fue rechazada" suele ser por sobrecarga de mensajes.
+        # Vamos a intentar un enfoque con reintentos para la escritura.
+        try:
+            excel = win32com.DispatchEx("Excel.Application")
+            excel.Visible = False
+            excel.DisplayAlerts = False
+        except:
+            # Fallback
+            excel = win32com.Dispatch("Excel.Application")
+            
         wb = None
         
         try:
@@ -858,11 +769,15 @@ class CopiarArchivo:
                 cell.HorizontalAlignment = -4108 # Center
                 cell.Borders.LineStyle = 1 # Borde
             
-            # Escribir datos
+            # Escribir datos con retardo para evitar saturar COM
             fila = 2
             col_mapping = {col: i+1 for i, col in enumerate(headers)}
             
-            for idx, row in df_agrupado.iterrows():
+            # Convertir DataFrame a lista de diccionarios para iteración más rápida
+            # y pre-procesar datos
+            datos_lista = df_agrupado.to_dict('records')
+            
+            for row in datos_lista:
                 tipo = row.get('_TIPO', 'DETALLE')
                 
                 if tipo == 'BLANCO':
@@ -879,41 +794,44 @@ class CopiarArchivo:
                             ws.Cells(fila, col_idx).Formula = raw_val
                             continue
 
+                        val_final = None
+                        
                         if col_idx in cols_num:
-                            # Numéricos: Forzar float, manejar vacíos como 0
+                            # Numéricos
                             try:
-                                if pd.isna(raw_val) or raw_val == '':
-                                    val = 0.0
+                                # Si es string vacío explícito (como en subtotales), dejar None para que quede celda vacía
+                                if raw_val == '':
+                                    val_final = None
+                                elif pd.isna(raw_val):
+                                    val_final = 0.0
                                 else:
-                                    val = float(raw_val)
+                                    val_final = float(raw_val)
                             except:
-                                val = 0.0
-                            ws.Cells(fila, col_idx).Value = val
+                                val_final = 0.0
                             
                         elif col_idx in cols_fecha:
-                            # Fechas: Usar helper
-                            val = self._convertir_fecha_excel(raw_val)
-                            if val is not None:
-                                ws.Cells(fila, col_idx).Value = val
+                            # Fechas
+                            val_final = self._convertir_fecha_excel(raw_val)
                                 
                         else:
-                            # Texto: Forzar string
+                            # Texto
                             if pd.isna(raw_val) or raw_val is None:
-                                val = ""
+                                val_final = ""
                             else:
-                                val = str(raw_val)
-                            ws.Cells(fila, col_idx).Value = val
+                                val_final = str(raw_val)
+
+                        if val_final is not None:
+                            ws.Cells(fila, col_idx).Value = val_final
                             
                     except Exception as cell_err:
-                        # Si falla una celda específica (ej. fecha rara), intentar como texto
-                        print(f"Warn: Fallo escritura celda Fila={fila} Col={col_idx}. Reintentando como texto. Error: {cell_err}")
+                        # Si falla, intentar una vez más como texto tras breve pausa
+                        time.sleep(0.01)
                         try:
-                            # Intentar escribir el valor crudo como string
                             ws.Cells(fila, col_idx).Value = str(raw_val) if raw_val is not None else ""
                         except:
-                            ws.Cells(fila, col_idx).Value = "ERR"
+                            pass # Ignorar si falla segunda vez
                 
-                # Formatos específicos
+                # Formatos específicos (solo si no es blanco)
                 # Moneda: VALOR FACTURA (9), VALOR NC (10), VALOR A PAGAR (11), TRM (16)
                 for c_idx in [9, 10, 11]:
                     ws.Cells(fila, c_idx).NumberFormat = "$ #,##0.00"
@@ -925,50 +843,119 @@ class CopiarArchivo:
 
                 # Estilos y Bordes por tipo
                 if tipo == 'DETALLE':
-                    # Bordes en toda la fila
                     ws.Range(ws.Cells(fila, 1), ws.Cells(fila, 17)).Borders.LineStyle = 1
-
                 elif tipo == 'SUBTOTAL_PROV':
-                    # Fila verde claro solo en celda de subtotal
                     cell_sub = ws.Cells(fila, 11)
-                    cell_sub.Interior.Color = 0xD4EFDF # Verde suave
+                    cell_sub.Interior.Color = 0xD4EFDF
                     cell_sub.Font.Bold = True
                     cell_sub.Borders.LineStyle = 1
-                    
                 elif tipo == 'TOTAL_SEMANA':
-                    # Fila azul claro o morado claro solo en celdas de total (Col 10 y 11)
-                    rango = ws.Range(ws.Cells(fila, 10), ws.Cells(fila, 11))
-                    rango.Interior.Color = 0xD7BDE2 # Morado suave
-                    rango.Font.Bold = True
-                    rango.Borders.LineStyle = 1
-                
+                    # Ahora la etiqueta está en PROVEEDOR (Col 4) y valor en Col 11
+                    # Resaltar la fila en esas columnas
+                    ws.Cells(fila, 4).Font.Bold = True
+                    ws.Cells(fila, 4).Interior.Color = 0xD7BDE2
+                    ws.Cells(fila, 4).Borders.LineStyle = 1
+                    
+                    cell_val = ws.Cells(fila, 11)
+                    cell_val.Interior.Color = 0xD7BDE2
+                    cell_val.Font.Bold = True
+                    cell_val.Borders.LineStyle = 1
                 elif tipo == 'DETALLE_UNICO':
-                    # Resaltar valor a pagar
                     ws.Cells(fila, 11).Interior.Color = 0xD4EFDF
                     ws.Cells(fila, 11).Font.Bold = True
-                    # Bordes en toda la fila
                     ws.Range(ws.Cells(fila, 1), ws.Cells(fila, 17)).Borders.LineStyle = 1
 
                 fila += 1
                 
+                # Pausa breve cada 50 filas para dejar respirar al proceso COM
+                if fila % 50 == 0:
+                    time.sleep(0.05)
+            
             ws.Columns.AutoFit()
             
             # Total General al final
             fila_total = fila
             
-            # Etiqueta en Columna 10 (VALOR NOTA CRÉDITO)
-            ws.Cells(fila_total, 10).Value = "TOTAL GENERAL DEL MES"
+            # Escribir texto asegurando que se vea
+            cell_total_title = ws.Cells(fila_total, 10)
+            cell_total_title.Value = "TOTAL GENERAL DEL MES"
             
-            # Fórmula en Columna 11 (VALOR A PAGAR)
-            ws.Cells(fila_total, 11).Formula = f'=SUBTOTAL(9, K2:K{fila_total-1})'
+            # Fórmula
+            cell_total_val = ws.Cells(fila_total, 11)
+            cell_total_val.Formula = f'=SUBTOTAL(9, K2:K{fila_total-1})'
             
             # Estilos SOLO en celdas 10 y 11
-            rango_total = ws.Range(ws.Cells(fila_total, 10), ws.Cells(fila_total, 11))
+            rango_total = ws.Range(cell_total_title, cell_total_val)
             rango_total.Font.Bold = True
             rango_total.Interior.Color = 0x8E44AD
             rango_total.Font.Color = 0xFFFFFF
             rango_total.Borders.LineStyle = 1
-            ws.Cells(fila_total, 11).NumberFormat = "$ #,##0.00"
+            cell_total_val.NumberFormat = "$ #,##0.00"
+            
+            # Generar tablas resumen por Semana y Marca (si se proporcionó df_origen)
+            if df_origen is not None and 'Semana' in df_origen.columns:
+                fila += 4 # Dejar espacio
+                
+                weeks = sorted(df_origen['Semana'].unique())
+                
+                for sem in weeks:
+                    # Filtrar y Agrupar
+                    df_sem = df_origen[df_origen['Semana'] == sem]
+                    resumen = df_sem.groupby('MARCA')['VALOR A PAGAR'].sum().reset_index()
+                    
+                    # Definir columnas para la tabla resumen: B (2) y C (3) o C y D
+                    # Vamos a usar Col 3 (Marca) y Col 4 (Valor) para alinear visualmente
+                    c_marca = 3
+                    c_valor = 4
+                    
+                    # Encabezado "Semana X"
+                    cell_header = ws.Cells(fila, c_marca)
+                    cell_header.Value = f"Semana {sem}"
+                    cell_header.Font.Bold = True
+                    cell_header.Interior.Color = 0xD7BDE2 # Morado suave
+                    cell_header.Borders.LineStyle = 1
+                    cell_header.HorizontalAlignment = -4108 # Center
+                    
+                    # Unir celdas de encabezado si se desea, o dejar solo en una
+                    ws.Range(ws.Cells(fila, c_marca), ws.Cells(fila, c_valor)).Merge()
+                    ws.Range(ws.Cells(fila, c_marca), ws.Cells(fila, c_valor)).Borders.LineStyle = 1
+                    
+                    fila += 1
+                    
+                    total_sem_resumen = 0.0
+                    
+                    for _, r in resumen.iterrows():
+                        marca = str(r['MARCA'])
+                        try:
+                            valor = float(r['VALOR A PAGAR'])
+                        except:
+                            valor = 0.0
+                        
+                        total_sem_resumen += valor
+                        
+                        # Nombre Marca
+                        ws.Cells(fila, c_marca).Value = marca
+                        ws.Cells(fila, c_marca).Borders.LineStyle = 1
+                        
+                        # Valor
+                        ws.Cells(fila, c_valor).Value = valor
+                        ws.Cells(fila, c_valor).NumberFormat = "$ #,##0.00"
+                        ws.Cells(fila, c_valor).Borders.LineStyle = 1
+                        
+                        fila += 1
+                        
+                    # Total de la tabla
+                    ws.Cells(fila, c_marca).Value = "Total"
+                    ws.Cells(fila, c_marca).Font.Bold = True
+                    ws.Cells(fila, c_marca).Borders.LineStyle = 1
+                    
+                    ws.Cells(fila, c_valor).Value = total_sem_resumen
+                    ws.Cells(fila, c_valor).Font.Bold = True
+                    ws.Cells(fila, c_valor).NumberFormat = "$ #,##0.00"
+                    ws.Cells(fila, c_valor).Borders.LineStyle = 1
+                    ws.Cells(fila, c_valor).Interior.Color = 0xD4EFDF # Verde suave
+                    
+                    fila += 2 # Espacio entre tablas
             
             wb.Save()
             
@@ -995,7 +982,7 @@ class CopiarArchivo:
             self.copiar_archivo_base(ruta_destino)
             time.sleep(1)
             
-            df = self.leer_datos_control_pagos(ruta_destino)
+            df = self.leer_datos_proceso_mensual(ruta_destino)
             if df is None: return
             
             df_mes = self.filtrar_por_fecha(df, self.fecha_filtrado)
@@ -1005,10 +992,10 @@ class CopiarArchivo:
                 return
             
             df_prep = self.preparar_datos_segunda_hoja(df_mes)
-            df_agrup = self.agrupar_y_calcular(df_prep)
+            df_agrup, df_con_semana = self.agrupar_y_calcular(df_prep)
             
             nombre_hoja = self.crear_nombre_segunda_hoja(self.fecha_filtrado)
-            self.guardar_proyeccion_com(ruta_destino, df_agrup, nombre_hoja)
+            self.guardar_proyeccion_com(ruta_destino, df_agrup, nombre_hoja, df_con_semana)
             
             messagebox.showinfo("Éxito", f"Proyección mensual creada en:\n{ruta_destino}")
             return str(ruta_destino)
@@ -1017,32 +1004,3 @@ class CopiarArchivo:
             self.log(f"Error fatal: {e}", "ERROR")
             traceback.print_exc()
             messagebox.showerror("Error", f"Ocurrió un error:\n{e}")
-
-def main():
-    configurador = ConfiguradorRutas()
-    if not configurador.cargar_o_crear_config():
-        return
-    
-    rutas = configurador.obtener_rutas()
-    
-    while True:
-        interfaz = InterfazModerna()
-        interfaz.crear_ventana()
-        
-        if not interfaz.ejecutar_proceso:
-            break
-            
-        ventana_prog = VentanaProgreso()
-        try:
-            copiador = CopiarArchivo(interfaz.fecha_seleccionada, ventana_prog, rutas)
-            copiador.ejecutar_proceso()
-        except Exception as e:
-            messagebox.showerror("Error", str(e))
-        finally:
-            ventana_prog.cerrar()
-            
-        if not messagebox.askyesno("Continuar", "¿Desea procesar otro mes?"):
-            break
-
-if __name__ == "__main__":
-    main()

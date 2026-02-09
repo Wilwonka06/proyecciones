@@ -1,18 +1,33 @@
 @echo off
 REM =====================================================
-REM COMPILADOR SIMPLE - CONTROL DE PAGOS GCO v3.0
-REM Sin ejecutar automaticamente el .exe al final
+REM COMPILADOR MODULAR - CONTROL DE PAGOS GCO v2.4.1
+REM 3 Archivos: Principal + Semanal + Mensual
 REM =====================================================
 
 echo.
-echo ========================================
-echo   COMPILADOR CONTROL DE PAGOS GCO v3.0
-echo ========================================
+echo ==========================================
+echo   COMPILADOR CONTROL DE PAGOS GCO v2.4.1
+echo   SISTEMA MODULAR (3 archivos)
+echo ==========================================
 echo.
 
-REM Verificar archivo
-if not exist "control_pagos_semana.py" (
-    echo ERROR: No se encuentra control_pagos_semana.py
+REM Verificar archivos principales
+if not exist "inicio_control.py" (
+    echo ERROR: No se encuentra inicio_control.py
+    echo.
+    pause
+    exit /b 1
+)
+
+if not exist "proceso_semanal.py" (
+    echo ERROR: No se encuentra proceso_semanal.py
+    echo.
+    pause
+    exit /b 1
+)
+
+if not exist "proceso_mensual.py" (
+    echo ERROR: No se encuentra proceso_mensual.py
     echo.
     pause
     exit /b 1
@@ -58,14 +73,18 @@ if "%opcion%"=="1" (
 )
 
 echo.
-echo [5/5] Compilando...
+echo [5/5] Compilando sistema modular...
 echo.
 
-REM Compilar
+REM Compilar - Archivo principal que importa los módulos
 pyinstaller --onefile %modo% ^
     --icon=icon.ico ^
-    --name="Control de Pagos" ^
+    --name="Control de Pagos GCO" ^
     --add-data "icon.ico;." ^
+    --add-data "proceso_semanal.py;." ^
+    --add-data "proceso_mensual.py;." ^
+    --hidden-import=proceso_semanal ^
+    --hidden-import=proceso_mensual ^
     --hidden-import=win32com ^
     --hidden-import=win32com.client ^
     --hidden-import=win32com.client.gencache ^
@@ -86,7 +105,7 @@ pyinstaller --onefile %modo% ^
     --hidden-import=babel.numbers ^
     --collect-all win32com ^
     --collect-all tkcalendar ^
-    control_pagos_semana.py
+    inicio_control.py
 
 if errorlevel 1 (
     echo.
@@ -97,17 +116,24 @@ if errorlevel 1 (
 )
 
 echo.
-echo ========================================
+echo ==========================================
 echo   COMPILACION EXITOSA
-echo ========================================
+echo ==========================================
 echo.
 echo Ejecutable creado en:
-echo   %cd%\dist\Control de Pagos.exe
+echo   %cd%\dist\Control de Pagos GCO.exe
 echo.
-echo Funcionalidades v3.0:
-echo   + Bucle de repeticion (no se cierra)
-echo   + Actualizacion automatica de datos
-echo   + RefreshAll + CalculateFull
+echo ESTRUCTURA MODULAR:
+echo   inicio_control.py  (Interfaz + Coordinacion)
+echo   proceso_semanal.py          (Logica semanal)
+echo   proceso_mensual.py          (Logica mensual)
+echo.
+echo Funcionalidades v2.4.1:
+echo   + Selector de tipo de proyeccion
+echo   + Proyeccion Semanal
+echo   + Proyeccion Mensual
+echo   + Bucle de repeticion
+echo   + Codigo modular y mantenible
 echo.
 echo Presiona cualquier tecla para abrir la carpeta...
 pause >nul
