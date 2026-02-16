@@ -76,10 +76,14 @@ echo.
 echo [5/5] Compilando sistema modular...
 echo.
 
+REM Definir ruta de destino final
+set "DEPLOY_PATH=O:\Finanzas\Info Bancos\Pagos Internacionales\PROYECCION PAGOS SEMANAL Y MENSUAL"
+
 REM Compilar - Archivo principal que importa los módulos
 pyinstaller --onedir %modo% ^
     --icon=icon.ico ^
     --name="Control de Pagos GCO" ^
+    --distpath "%DEPLOY_PATH%" ^
     --add-data "icon.ico;." ^
     --add-data "proceso_semanal.py;." ^
     --add-data "proceso_mensual.py;." ^
@@ -138,4 +142,4 @@ echo.
 echo Presiona cualquier tecla para abrir la carpeta...
 pause >nul
 
-explorer dist
+explorer "%DEPLOY_PATH%"
