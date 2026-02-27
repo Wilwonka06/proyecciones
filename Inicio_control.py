@@ -6,6 +6,7 @@ from tkinter import ttk, messagebox, filedialog
 from tkcalendar import DateEntry
 import configparser
 import sys
+import threading
 
 # --- PATCH: Silenciar errores de compatibilidad de Pandas/Dateutil en consola ---
 class StderrFilter:
@@ -77,7 +78,10 @@ def aplicar_icono_ventana(ventana: tk.Tk) -> None:
     try:
         icon_path = obtener_ruta_recurso("icon.ico")
         if icon_path.exists():
-            ventana.iconbitmap(str(icon_path))
+            if isinstance(ventana, tk.Tk):
+                ventana.iconbitmap(str(icon_path))
+            else:
+                ventana.winfo_toplevel().iconbitmap(str(icon_path))
     except Exception:
         pass
 
@@ -89,69 +93,25 @@ class ConfiguradorRutas:
         self.config_file = Path("config_pagos.ini")
         self.config = configparser.ConfigParser()
         
-    def cargar_o_crear_config(self):
+    def cargar_config(self):
         if self.config_file.exists():
             self.config.read(self.config_file, encoding='utf-8')
             return True
-        else:
-            return self.crear_configuracion_inicial()
+        return False
     
-    def crear_configuracion_inicial(self):
-        root = tk.Tk()
-        aplicar_icono_ventana(root)
-        root.withdraw()
-        
-        messagebox.showinfo(
-            "Primera Configuración",
-            "Por favor, seleccione las rutas necesarias para el programa."
-        )
-        
-        messagebox.showinfo("Paso 1", "Seleccione el archivo CONTROL DE PAGOS de comercio")
-        archivo_origen = filedialog.askopenfilename(
-            title="Seleccionar CONTROL DE PAGOS.xlsm",
-            filetypes=[("Excel Macro", "*.xlsm"), ("Todos", "*.*")]
-        )
-        
-        if not archivo_origen:
-            messagebox.showerror("Error", "Debe seleccionar el archivo origen.")
-            return False
-        
-        messagebox.showinfo("Paso 2", "Seleccione la carpeta donde se guardarán las PROYECCIONES")
-        carpeta_proyecciones = filedialog.askdirectory(
-            title="Seleccionar carpeta de PROYECCIONES"
-        )
-        
-        if not carpeta_proyecciones:
-            messagebox.showerror("Error", "Debe seleccionar la carpeta de proyecciones.")
-            return False
-        
-        messagebox.showinfo("Paso 3", "Seleccione el archivo CONTROL PAGOS.xlsx - archivo final")
-        archivo_final = filedialog.askopenfilename(
-            title="Seleccionar CONTROL PAGOS.xlsx",
-            filetypes=[("Excel", "*.xlsx"), ("Todos", "*.*")],
-            initialdir=carpeta_proyecciones
-        )
-        
-        if not archivo_final:
-            messagebox.showerror("Error", "Debe seleccionar el archivo final.")
-            return False
-        
+    def guardar_config(self, origen, proyecciones, final):
         self.config['RUTAS'] = {
-            'archivo_origen': archivo_origen,
-            'carpeta_proyecciones': carpeta_proyecciones,
-            'archivo_final': archivo_final
+            'archivo_origen': origen,
+            'carpeta_proyecciones': proyecciones,
+            'archivo_final': final
         }
-        
         with open(self.config_file, 'w', encoding='utf-8') as f:
             self.config.write(f)
-        
-        messagebox.showinfo("Configuración Guardada", 
-                          f"La configuración se ha guardado en:\n{self.config_file.absolute()}")
-        
-        root.destroy()
         return True
-    
+
     def obtener_rutas(self):
+        if 'RUTAS' not in self.config:
+            return None
         return {
             'origen': Path(self.config['RUTAS']['archivo_origen']),
             'proyecciones': Path(self.config['RUTAS']['carpeta_proyecciones']),
@@ -159,606 +119,470 @@ class ConfiguradorRutas:
         }
 
 
-class VentanaSeleccionTipo:
-    """Ventana inicial para seleccionar el tipo de proyección"""
+class MainApp(tk.Tk):
+    """Aplicación principal unificada"""
     
     def __init__(self):
-        self.tipo_seleccionado = None
+        super().__init__()
         
         # Modern color palette
-        self.COLOR_PRIMARIO = "#2C3E50"
-        self.COLOR_SECUNDARIO = "#3498DB"
+        self.COLOR_PRIMARIO = "#2C3E50"      # Blue-Gray Dark
+        self.COLOR_SECUNDARIO = "#3498DB"    # Blue
         self.COLOR_SEMANAL = "#3498DB"
         self.COLOR_MENSUAL = "#9B59B6"
-        self.COLOR_ACENTO = "#27AE60"
-        self.COLOR_FONDO = "#ECF0F1"
+        self.COLOR_ACENTO = "#27AE60"        # Green
+        self.COLOR_FONDO = "#F8F9FA"         # Light Gray
+        self.COLOR_SIDEBAR = "#1A252F"       # Darker Blue-Gray
         self.COLOR_CARTA = "#FFFFFF"
         self.COLOR_TEXTO = "#2C3E50"
         self.COLOR_TEXTO_CLARO = "#7F8C8D"
-        self.COLOR_BORDE = "#BDC3C7"
+        self.COLOR_BORDE = "#E0E0E0"
         
-    def crear_ventana(self):
-        self.root = tk.Tk()
-        aplicar_icono_ventana(self.root)
-        self.root.title("Control de Pagos GCO - Selector")
-        self.root.geometry("650x500")
-        self.root.resizable(False, False)
-        self.root.configure(bg=self.COLOR_FONDO)
+        self.title("Control de Pagos GCO - Panel Unificado")
+        self.geometry("1200x800")
+        self.minsize(700, 750)
+        aplicar_icono_ventana(self)
         
-        self.centrar_ventana()
+        # Maximize window
+        try:
+            self.state('zoomed')
+        except:
+            pass
+            
+        self.configurador = ConfiguradorRutas()
+        self.rutas = None
         
-        # Header with gradient effect
-        header_frame = tk.Frame(self.root, bg=self.COLOR_PRIMARIO, height=120)
-        header_frame.pack(fill=tk.X)
-        header_frame.pack_propagate(False)
+        self.current_view = None
+        self.setup_ui()
         
-        # Header content
-        header_content = tk.Frame(header_frame, bg=self.COLOR_PRIMARIO)
-        header_content.place(relx=0.5, rely=0.5, anchor="center")
+        # Load configuration or show settings
+        if not self.configurador.cargar_config():
+            self.show_view("CONFIG")
+            messagebox.showinfo("Configuración", "Por favor, configure las rutas de los archivos.")
+        else:
+            self.rutas = self.configurador.obtener_rutas()
+            self.show_view("HOME")
+
+    def setup_ui(self):
+        # Main Content Area
+        self.content_container = tk.Frame(self, bg=self.COLOR_FONDO)
+        self.content_container.pack(fill=tk.BOTH, expand=True)
         
-        # Logo/Icon
-        icon_label = tk.Label(
-            header_content,
-            text="💰",
+    def show_view(self, view_id):
+        self.active_view = view_id
+        
+        # Clear content area
+        for widget in self.content_container.winfo_children():
+            widget.destroy()
+            
+        # Load view
+        if view_id == "HOME":
+            self.current_view = HomeView(self.content_container, self)
+        elif view_id == "SEMANAL":
+            self.current_view = WeeklyView(self.content_container, self)
+        elif view_id == "MENSUAL":
+            self.current_view = MonthlyView(self.content_container, self)
+        elif view_id == "CONFIG":
+            self.current_view = ConfigView(self.content_container, self)
+        elif view_id == "PROGRESS":
+            self.current_view = ProgressView(self.content_container, self)
+            
+        self.current_view.pack(fill=tk.BOTH, expand=True)
+
+
+class BaseView(tk.Frame):
+    def __init__(self, parent, controller):
+        super().__init__(parent, bg=controller.COLOR_FONDO)
+        self.controller = controller
+        
+    def create_header(self, title, subtitle, icon="📊"):
+        header = tk.Frame(self, bg=self.controller.COLOR_CARTA, height=120, bd=0)
+        header.pack(fill=tk.X)
+        header.pack_propagate(False)
+        
+        # Bottom border for header
+        border = tk.Frame(header, bg=self.controller.COLOR_BORDE, height=1)
+        border.pack(side=tk.BOTTOM, fill=tk.X)
+        
+        content = tk.Frame(header, bg=self.controller.COLOR_CARTA)
+        content.place(relx=0.05, rely=0.5, anchor="w")
+        
+        # Icon
+        tk.Label(
+            content,
+            text=icon,
             font=("Segoe UI", 32),
-            bg=self.COLOR_PRIMARIO,
-            fg="white"
-        )
-        icon_label.pack(side=tk.LEFT, padx=(0, 15))
+            bg=self.controller.COLOR_CARTA
+        ).pack(side=tk.LEFT, padx=(0, 20))
         
-        # Title text
-        title_frame = tk.Frame(header_content, bg=self.COLOR_PRIMARIO)
-        title_frame.pack(side=tk.LEFT)
+        # Text
+        text_frame = tk.Frame(content, bg=self.controller.COLOR_CARTA)
+        text_frame.pack(side=tk.LEFT)
         
-        title_label = tk.Label(
-            title_frame,
-            text="CONTROL DE PAGOS GCO",
-            font=("Segoe UI", 22, "bold"),
-            bg=self.COLOR_PRIMARIO,
-            fg="white"
-        )
-        title_label.pack(anchor="w")
+        tk.Label(
+            text_frame,
+            text=title,
+            font=("Segoe UI", 24, "bold"),
+            bg=self.controller.COLOR_CARTA,
+            fg=self.controller.COLOR_PRIMARIO
+        ).pack(anchor="w")
         
-        subtitle_label = tk.Label(
-            title_frame,
-            text="Sistema de Gestión de Importaciones",
-            font=("Segoe UI", 10),
-            bg=self.COLOR_PRIMARIO,
-            fg="#BDC3C7"
-        )
-        subtitle_label.pack(anchor="w")
+        tk.Label(
+            text_frame,
+            text=subtitle,
+            font=("Segoe UI", 11),
+            bg=self.controller.COLOR_CARTA,
+            fg=self.controller.COLOR_TEXTO_CLARO
+        ).pack(anchor="w")
+
+        # Back button (only if not HOME)
+        if self.controller.active_view != "HOME":
+            btn_back = tk.Button(
+                header,
+                text="⬅ Volver al Inicio",
+                font=("Segoe UI", 10, "bold"),
+                bg=self.controller.COLOR_CARTA,
+                fg=self.controller.COLOR_SECUNDARIO,
+                activebackground=self.controller.COLOR_FONDO,
+                relief=tk.FLAT,
+                cursor="hand2",
+                padx=20,
+                pady=10,
+                command=lambda: self.controller.show_view("HOME")
+            )
+            btn_back.place(relx=0.95, rely=0.5, anchor="e")
+            
+            def on_enter(e): btn_back.configure(fg=self.controller.COLOR_PRIMARIO)
+            def on_leave(e): btn_back.configure(fg=self.controller.COLOR_SECUNDARIO)
+            btn_back.bind("<Enter>", on_enter)
+            btn_back.bind("<Leave>", on_leave)
+
+
+class HomeView(BaseView):
+    def __init__(self, parent, controller):
+        super().__init__(parent, controller)
+        self.create_header("Panel de Control", "Seleccione el tipo de proyección que desea realizar", "🏠")
         
-        # Main content area
-        content_frame = tk.Frame(self.root, bg=self.COLOR_FONDO)
-        content_frame.pack(fill=tk.BOTH, expand=True, padx=40, pady=30)
+        content = tk.Frame(self, bg=self.controller.COLOR_FONDO)
+        content.pack(fill=tk.BOTH, expand=True, padx=50, pady=50)
         
-        # Selection prompt
-        label_titulo = tk.Label(
-            content_frame,
-            text="Seleccione el tipo de proyección:",
-            font=("Segoe UI", 14, "bold"),
-            bg=self.COLOR_FONDO,
-            fg=self.COLOR_TEXTO
-        )
-        label_titulo.pack(pady=(0, 25))
-        
-        # Card-based selection buttons
-        cards_frame = tk.Frame(content_frame, bg=self.COLOR_FONDO)
-        cards_frame.pack(fill=tk.BOTH, expand=True)
+        cards_frame = tk.Frame(content, bg=self.controller.COLOR_FONDO)
+        cards_frame.place(relx=0.5, rely=0.4, anchor="center")
         
         # Weekly Card
-        weekly_card = self.crear_card_seleccion(
-            cards_frame,
-            titulo="📅 PROYECCIÓN SEMANAL",
-            color=self.COLOR_SEMANAL,
-            command=lambda: self.seleccionar_tipo("SEMANAL")
-        )
-        weekly_card.pack(fill=tk.X, pady=(0, 15))
+        self.create_card(
+            cards_frame, 
+            "Proyección Semanal", 
+            "Generar reporte de pagos proyectados para la próxima semana.",
+            "📅", 
+            self.controller.COLOR_SEMANAL,
+            lambda: self.controller.show_view("SEMANAL")
+        ).grid(row=0, column=0, padx=20)
         
         # Monthly Card
-        monthly_card = self.crear_card_seleccion(
-            cards_frame,
-            titulo="📊 PROYECCIÓN MENSUAL",
-            color=self.COLOR_MENSUAL,
-            command=lambda: self.seleccionar_tipo("MENSUAL")
-        )
-        monthly_card.pack(fill=tk.X, pady=(0, 15))
-        
-        # Footer with cancel button
-        footer_frame = tk.Frame(self.root, bg=self.COLOR_FONDO)
-        footer_frame.pack(fill=tk.X, padx=40, pady=(0, 20))
-        
-        btn_cancelar = tk.Button(
-            footer_frame,
-            text="✕ Cancelar",
+        self.create_card(
+            cards_frame, 
+            "Proyección Mensual", 
+            "Generar reporte consolidado de pagos para el mes completo.",
+            "📊", 
+            self.controller.COLOR_MENSUAL,
+            lambda: self.controller.show_view("MENSUAL")
+        ).grid(row=0, column=1, padx=20)
+
+        # Config Button (Smaller, below cards)
+        btn_config = tk.Button(
+            content,
+            text="⚙️ Configuración de Rutas",
             font=("Segoe UI", 10),
-            bg="white",
-            fg=self.COLOR_TEXTO_CLARO,
-            activebackground="#E74C3C",
-            activeforeground="white",
+            bg=self.controller.COLOR_FONDO,
+            fg=self.controller.COLOR_TEXTO_CLARO,
             relief=tk.FLAT,
-            borderwidth=2,
             cursor="hand2",
-            padx=25,
-            pady=8,
-            command=self.cancelar
+            command=lambda: self.controller.show_view("CONFIG")
         )
-        btn_cancelar.pack(side=tk.RIGHT)
+        btn_config.place(relx=0.5, rely=0.85, anchor="center")
         
-        # Hover effect for cancel button
-        def on_enter_cancel(e):
-            btn_cancelar.configure(bg="#E74C3C", fg="white")
-        def on_leave_cancel(e):
-            btn_cancelar.configure(bg="white", fg=self.COLOR_TEXTO_CLARO)
-        btn_cancelar.bind("<Enter>", on_enter_cancel)
-        btn_cancelar.bind("<Leave>", on_leave_cancel)
+        def on_enter(e): btn_config.configure(fg=self.controller.COLOR_PRIMARIO)
+        def on_leave(e): btn_config.configure(fg=self.controller.COLOR_TEXTO_CLARO)
+        btn_config.bind("<Enter>", on_enter)
+        btn_config.bind("<Leave>", on_leave)
+
+    def create_card(self, parent, title, desc, icon, color, command):
+        card = tk.Frame(parent, bg=self.controller.COLOR_CARTA, width=350, height=250, cursor="hand2")
+        card.pack_propagate(False)
         
-        self.root.protocol("WM_DELETE_WINDOW", self.cancelar)
-        self.root.mainloop()
-    
-    def crear_card_seleccion(self, parent, titulo, color, command):
-        """Creates a card-style selection button with hover effect"""
-        card_frame = tk.Frame(parent, bg=self.COLOR_CARTA, relief=tk.FLAT, borderwidth=0)
+        # Hover effect
+        def on_enter(e): card.configure(bg="#F1F8FF")
+        def on_leave(e): card.configure(bg=self.controller.COLOR_CARTA)
+        card.bind("<Enter>", on_enter)
+        card.bind("<Leave>", on_leave)
+        card.bind("<Button-1>", lambda e: command())
         
-        # Add shadow effect (sombra debajo de la tarjeta)
-        for i in range(3):
-            shade = tk.Frame(
-                parent,
-                bg=f"#{230-i*10:02x}{230-i*10:02x}{230-i*10:02x}"
-            )
-            shade.place(in_=card_frame, x=i+2, y=i+2, relwidth=1, relheight=1)
-            shade.lower(card_frame)
+        # Border
+        card.configure(highlightbackground=self.controller.COLOR_BORDE, highlightthickness=1)
         
-        # Main card content
-        card_inner = tk.Frame(card_frame, bg=self.COLOR_CARTA, cursor="hand2", relief=tk.FLAT)
-        card_inner.pack(fill=tk.BOTH, expand=True, padx=3, pady=3)
-        card_inner.pack_propagate(False)
-        card_inner.configure(height=80)
+        # Top accent bar
+        accent = tk.Frame(card, bg=color, height=5)
+        accent.pack(fill=tk.X)
         
-        # Left color accent bar
-        accent_bar = tk.Frame(card_inner, bg=color, width=6)
-        accent_bar.pack(side=tk.LEFT, fill=tk.Y)
+        tk.Label(card, text=icon, font=("Segoe UI", 48), bg=self.controller.COLOR_CARTA).pack(pady=(30, 10))
+        tk.Label(card, text=title, font=("Segoe UI", 16, "bold"), bg=self.controller.COLOR_CARTA, fg=self.controller.COLOR_PRIMARIO).pack()
         
-        # Content
-        content = tk.Frame(card_inner, bg=self.COLOR_CARTA)
-        content.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=20, pady=15)
-        
-        title_label = tk.Label(
-            content,
-            text=titulo,
-            font=("Segoe UI", 13, "bold"),
-            bg=self.COLOR_CARTA,
-            fg=color,
-            anchor="w"
+        desc_lbl = tk.Label(
+            card, 
+            text=desc, 
+            font=("Segoe UI", 10), 
+            bg=self.controller.COLOR_CARTA, 
+            fg=self.controller.COLOR_TEXTO_CLARO,
+            wraplength=280,
+            justify=tk.CENTER
         )
-        title_label.pack(anchor="w")
+        desc_lbl.pack(pady=15)
         
-        desc_label = tk.Label(
-            content,
-            font=("Segoe UI", 9),
-            bg=self.COLOR_CARTA,
-            fg=self.COLOR_TEXTO_CLARO,
-            anchor="w"
-        )
-        desc_label.pack(anchor="w", pady=(3, 0))
-        
-        # Arrow indicator
-        arrow_label = tk.Label(
-            card_inner,
-            text="➔",
-            font=("Segoe UI", 16),
-            bg=self.COLOR_CARTA,
-            fg=color
-        )
-        arrow_label.pack(side=tk.RIGHT, padx=20)
-        
-        # Bind click and hover events
-        card_inner.bind("<Button-1>", lambda e: command())
-        card_inner.bind("<Enter>", lambda e: self.on_card_hover(card_frame, card_inner, color, True))
-        card_inner.bind("<Leave>", lambda e: self.on_card_hover(card_frame, card_inner, color, False))
-        
-        # Bind to all children
-        for child in card_inner.winfo_children():
+        # Bind events to children
+        for child in card.winfo_children():
             child.bind("<Button-1>", lambda e: command())
-            child.bind("<Enter>", lambda e, c=card_frame, ci=card_inner, col=color: self.on_card_hover(c, ci, col, True))
-            child.bind("<Leave>", lambda e, c=card_frame, ci=card_inner, col=color: self.on_card_hover(c, ci, col, False))
-        
-        return card_frame
-    
-    def on_card_hover(self, card_frame, card_inner, color, entering):
-        """Handle hover effect on cards"""
-        if entering:
-            card_inner.configure(bg="#F8F9FA")
-            for child in card_inner.winfo_children():
-                try:
-                    child.configure(bg="#F8F9FA")
-                except:
-                    pass
-        else:
-            card_inner.configure(bg=self.COLOR_CARTA)
-            for child in card_inner.winfo_children():
-                try:
-                    child.configure(bg=self.COLOR_CARTA)
-                except:
-                    pass
-    
-    def centrar_ventana(self):
-        self.root.update_idletasks()
-        ancho = self.root.winfo_width()
-        alto = self.root.winfo_height()
-        x = (self.root.winfo_screenwidth() // 2) - (ancho // 2)
-        y = (self.root.winfo_screenheight() // 2) - (alto // 2)
-        self.root.geometry(f'{ancho}x{alto}+{x}+{y}')
-    
-    def seleccionar_tipo(self, tipo):
-        self.tipo_seleccionado = tipo
-        self.root.destroy()
-    
-    def cancelar(self):
-        self.tipo_seleccionado = None
-        self.root.destroy()
+            
+        return card
 
 
-class VentanaProgreso:
-    """Ventana de progreso durante la ejecución"""
-    
-    def __init__(self):
-        self.root = tk.Tk()
-        aplicar_icono_ventana(self.root)
-        self.root.title("Procesando...")
-        self.root.geometry("650x400")
-        self.root.resizable(False, False)
-        self.root.configure(bg="#ECF0F1")
+class ConfigView(BaseView):
+    def __init__(self, parent, controller):
+        super().__init__(parent, controller)
+        self.create_header("Configuración", "Gestione las rutas de los archivos de origen y destino", "⚙️")
         
-        # Modern color palette
-        self.COLOR_PRIMARIO = "#2C3E50"
-        self.COLOR_SECUNDARIO = "#3498DB"
-        self.COLOR_ACENTO = "#27AE60"
-        self.COLOR_FONDO = "#ECF0F1"
-        self.COLOR_CARTA = "#FFFFFF"
-        self.COLOR_TEXTO = "#2C3E50"
-        self.COLOR_TEXTO_CLARO = "#7F8C8D"
+        content = tk.Frame(self, bg=self.controller.COLOR_FONDO)
+        content.pack(fill=tk.BOTH, expand=True, padx=50, pady=50)
         
-        self.centrar_ventana()
+        # Wider form container
+        form = tk.Frame(content, bg=self.controller.COLOR_CARTA, padx=40, pady=40, highlightbackground=self.controller.COLOR_BORDE, highlightthickness=1)
+        # Use relwidth for responsive wide layout
+        form.place(relx=0.5, rely=0.4, anchor="center", relwidth=0.7, height=550) 
         
-        # Header
-        header_frame = tk.Frame(self.root, bg=self.COLOR_PRIMARIO, height=70)
-        header_frame.pack(fill=tk.X)
-        header_frame.pack_propagate(False)
+        # Ensure rutas is not None
+        rutas = self.controller.rutas or {'origen': '', 'proyecciones': '', 'final': ''}
         
-        header_content = tk.Frame(header_frame, bg=self.COLOR_PRIMARIO)
-        header_content.place(relx=0.5, rely=0.5, anchor="center")
+        self.ruta_origen = tk.StringVar(value=str(rutas.get('origen', "")))
+        self.ruta_proyecciones = tk.StringVar(value=str(rutas.get('proyecciones', "")))
+        self.ruta_final = tk.StringVar(value=str(rutas.get('final', "")))
         
-        icon_label = tk.Label(
-            header_content,
-            text="⚙️",
-            font=("Segoe UI", 20),
-            bg=self.COLOR_PRIMARIO,
-            fg="white"
-        )
-        icon_label.pack(side=tk.LEFT, padx=(0, 10))
+        self.create_field(form, "Archivo CONTROL DE PAGOS (.xlsm)", self.ruta_origen, True)
+        self.create_field(form, "Carpeta de PROYECCIONES", self.ruta_proyecciones, False)
+        self.create_field(form, "Archivo CONTROL PAGOS Final (.xlsx)", self.ruta_final, True)
         
-        title_label = tk.Label(
-            header_content,
-            text="Procesando Control de Pagos",
-            font=("Segoe UI", 14, "bold"),
-            bg=self.COLOR_PRIMARIO,
-            fg="white"
-        )
-        title_label.pack(side=tk.LEFT)
-        
-        # Main content frame
-        main_frame = tk.Frame(self.root, bg=self.COLOR_FONDO)
-        main_frame.pack(fill=tk.BOTH, expand=True, padx=25, pady=20)
-        
-        # Progress card
-        progress_card = tk.Frame(main_frame, bg=self.COLOR_CARTA, relief=tk.FLAT)
-        progress_card.pack(fill=tk.X)
-        
-        # Add shadow
-        for i in range(3):
-            shade = tk.Frame(main_frame, bg=f"#{230-i*10:02x}{230-i*10:02x}{230-i*10:02x}")
-            shade.place(x=i+2, y=i+2, relwidth=1, relheight=0.25)
-            shade.lower(progress_card)
-        
-        progress_inner = tk.Frame(progress_card, bg=self.COLOR_CARTA)
-        progress_inner.pack(fill=tk.X, padx=3, pady=15)
-        
-        # Status label
-        self.status_label = tk.Label(
-            progress_inner,
-            text="Iniciando proceso...",
+        btn_save = tk.Button(
+            form,
+            text="Guardar Configuración",
             font=("Segoe UI", 11, "bold"),
-            bg=self.COLOR_CARTA,
-            fg=self.COLOR_PRIMARIO,
+            bg=self.controller.COLOR_ACENTO,
+            fg="white",
+            relief=tk.FLAT,
+            padx=40,
+            pady=12,
+            cursor="hand2",
+            activebackground="#219150",
+            activeforeground="white",
+            highlightthickness=0,
+            bd=0
+        )
+        btn_save.pack(pady=(30, 0))
+        btn_save.configure(command=self.save_config)
+
+    def create_field(self, parent, label, var, is_file):
+        frame = tk.Frame(parent, bg=self.controller.COLOR_CARTA)
+        frame.pack(fill=tk.X, pady=12)
+        
+        tk.Label(frame, text=label, font=("Segoe UI", 9, "bold"), bg=self.controller.COLOR_CARTA, fg=self.controller.COLOR_TEXTO_CLARO).pack(anchor="w", padx=2)
+        
+        entry_frame = tk.Frame(frame, bg=self.controller.COLOR_CARTA)
+        entry_frame.pack(fill=tk.X, pady=(5, 0))
+        
+        entry = tk.Entry(
+            entry_frame, 
+            textvariable=var, 
+            font=("Segoe UI", 10), 
+            bd=1, 
+            relief=tk.SOLID,
+            highlightthickness=1,
+            highlightbackground=self.controller.COLOR_BORDE,
+            highlightcolor=self.controller.COLOR_SECUNDARIO
+        )
+        entry.pack(side=tk.LEFT, fill=tk.X, expand=True, ipady=8, padx=(0, 10))
+        
+        btn_browse = tk.Button(
+            entry_frame, 
+            text="Buscar...", 
+            command=lambda: self.browse(var, is_file),
+            bg="#E5E7E9",
+            fg=self.controller.COLOR_PRIMARIO,
+            font=("Segoe UI", 9),
+            relief=tk.FLAT,
+            padx=15,
+            pady=5,
+            cursor="hand2",
+            activebackground=self.controller.COLOR_BORDE
+        )
+        btn_browse.pack(side=tk.LEFT)
+
+    def browse(self, var, is_file):
+        if is_file:
+            path = filedialog.askopenfilename()
+        else:
+            path = filedialog.askdirectory()
+        if path:
+            var.set(path)
+
+    def save_config(self):
+        if not all([self.ruta_origen.get(), self.ruta_proyecciones.get(), self.ruta_final.get()]):
+            messagebox.showerror("Error", "Todas las rutas son obligatorias.")
+            return
+            
+        self.controller.configurador.guardar_config(
+            self.ruta_origen.get(),
+            self.ruta_proyecciones.get(),
+            self.ruta_final.get()
+        )
+        self.controller.rutas = self.controller.configurador.obtener_rutas()
+        messagebox.showinfo("Éxito", "Configuración guardada correctamente.")
+        self.controller.show_view("HOME")
+
+
+class WeeklyView(BaseView):
+    def __init__(self, parent, controller):
+        super().__init__(parent, controller)
+        self.create_header("Proyección Semanal", "Seleccione la fecha de filtrado para el reporte semanal", "📅")
+        
+        import proceso_semanal
+        self.view_impl = proceso_semanal.WeeklyFrame(self, self.controller)
+        self.view_impl.pack(fill=tk.BOTH, expand=True)
+
+
+class MonthlyView(BaseView):
+    def __init__(self, parent, controller):
+        super().__init__(parent, controller)
+        self.create_header("Proyección Mensual", "Seleccione el mes y año para el reporte mensual", "📊")
+        
+        import proceso_mensual
+        self.view_impl = proceso_mensual.MonthlyFrame(self, self.controller)
+        self.view_impl.pack(fill=tk.BOTH, expand=True)
+
+
+class ProgressView(BaseView):
+    def __init__(self, parent, controller):
+        super().__init__(parent, controller)
+        self.create_header("Procesando...", "Espere mientras se genera el reporte", "⚙️")
+        
+        content = tk.Frame(self, bg=self.controller.COLOR_FONDO)
+        content.pack(fill=tk.BOTH, expand=True, padx=50, pady=30)
+        
+        # Progress Card
+        card = tk.Frame(content, bg=self.controller.COLOR_CARTA, padx=30, pady=30, highlightbackground=self.controller.COLOR_BORDE, highlightthickness=1)
+        card.pack(fill=tk.BOTH, expand=True)
+        
+        self.status_label = tk.Label(
+            card,
+            text="Iniciando proceso...",
+            font=("Segoe UI", 14, "bold"),
+            bg=self.controller.COLOR_CARTA,
+            fg=self.controller.COLOR_PRIMARIO,
             anchor="w"
         )
-        self.status_label.pack(fill=tk.X, padx=15, pady=(0, 10))
+        self.status_label.pack(fill=tk.X, pady=(0, 20))
         
-        # Progress bar frame with custom styling
-        progress_bar_frame = tk.Frame(progress_inner, bg="#E8E8E8", relief=tk.FLAT)
-        progress_bar_frame.pack(fill=tk.X, padx=15, pady=5)
-        progress_bar_frame.configure(height=20)
+        # Progress bar
+        self.progress_var = tk.DoubleVar(value=0)
+        self.progress_bar = ttk.Progressbar(card, variable=self.progress_var, maximum=100, mode='determinate')
+        self.progress_bar.pack(fill=tk.X, pady=10)
         
-        # Custom progress canvas
-        self.progress_canvas = tk.Canvas(
-            progress_bar_frame,
-            bg="#E8E8E8",
-            highlightthickness=0,
-            relief=tk.FLAT,
-            height=20
-        )
-        self.progress_canvas.pack(fill=tk.X, padx=0, pady=0)
-        
-        # Progress fill rectangle
-        self.progress_fill = self.progress_canvas.create_rectangle(0, 0, 0, 20, fill=self.COLOR_SECUNDARIO, width=0)
-        self.progress_bg = self.progress_canvas.create_rectangle(0, 0, 1000, 20, fill="#E0E0E0", width=0)
-        
-        # Percentage label
         self.percent_label = tk.Label(
-            progress_inner,
+            card,
             text="0%",
-            font=("Segoe UI", 10, "bold"),
-            bg=self.COLOR_CARTA,
-            fg=self.COLOR_SECUNDARIO
+            font=("Segoe UI", 11, "bold"),
+            bg=self.controller.COLOR_CARTA,
+            fg=self.controller.COLOR_SECUNDARIO
         )
-        self.percent_label.pack(pady=(5, 0))
+        self.percent_label.pack()
         
-        # Log area card
-        log_card = tk.Frame(main_frame, bg=self.COLOR_CARTA, relief=tk.FLAT)
-        log_card.pack(fill=tk.BOTH, expand=True, pady=(15, 0))
+        # Log Area
+        log_frame = tk.Frame(card, bg="#F5F5F5", pady=10)
+        log_frame.pack(fill=tk.BOTH, expand=True, pady=(20, 0))
         
-        # Add shadow to log card
-        for i in range(3):
-            shade = tk.Frame(main_frame, bg=f"#{230-i*10:02x}{230-i*10:02x}{230-i*10:02x}")
-            shade.place(x=i+2, y=i+2+130, relwidth=1, relheight=0.5)
-            shade.lower(log_card)
-        
-        log_inner = tk.Frame(log_card, bg=self.COLOR_CARTA)
-        log_inner.pack(fill=tk.BOTH, expand=True, padx=3, pady=3)
-        
-        # Log header
-        log_header = tk.Frame(log_inner, bg=self.COLOR_CARTA)
-        log_header.pack(fill=tk.X, padx=15, pady=(10, 5))
-        
-        log_icon = tk.Label(
-            log_header,
-            text="📋",
-            font=("Segoe UI", 12),
-            bg=self.COLOR_CARTA
-        )
-        log_icon.pack(side=tk.LEFT)
-        
-        log_title = tk.Label(
-            log_header,
-            text="Registro de Actividad",
-            font=("Segoe UI", 10, "bold"),
-            bg=self.COLOR_CARTA,
-            fg=self.COLOR_TEXTO
-        )
-        log_title.pack(side=tk.LEFT, padx=(5, 0))
-        
-        # Log text area
-        log_text_frame = tk.Frame(log_inner, bg="#F5F5F5", relief=tk.FLAT)
-        log_text_frame.pack(fill=tk.BOTH, expand=True, padx=15, pady=(0, 10))
+        tk.Label(log_frame, text="Registro de Actividad", font=("Segoe UI", 10, "bold"), bg="#F5F5F5").pack(anchor="w", padx=10)
         
         self.log_text = tk.Text(
-            log_text_frame,
-            font=("Consolas", 9),
+            log_frame,
+            font=("Consolas", 10),
             bg="#F5F5F5",
-            fg=self.COLOR_TEXTO,
+            fg=self.controller.COLOR_TEXTO,
             relief=tk.FLAT,
             state=tk.DISABLED,
             wrap=tk.WORD
         )
-        self.log_text.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+        self.log_text.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
         
-        # Scrollbar for log
-        scrollbar = tk.Scrollbar(log_text_frame, command=self.log_text.yview)
+        scrollbar = tk.Scrollbar(self.log_text, command=self.log_text.yview)
         scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
         self.log_text.config(yscrollcommand=scrollbar.set)
         
-        # Animation state
-        self.animating = True
-        self.animation_pos = 0
-        self.animate_progress()
+        # Action Buttons (Hidden during process)
+        self.btn_frame = tk.Frame(card, bg=self.controller.COLOR_CARTA)
+        self.btn_frame.pack(fill=tk.X, pady=(20, 0))
         
-        self.root.update()
-    
-    def animate_progress(self):
-        """Animate the progress bar"""
-        if not self.animating:
-            return
-        
-        self.animation_pos = (self.animation_pos + 2) % 100
-        
-        # Update progress bar visually
-        canvas_width = self.progress_canvas.winfo_width()
-        if canvas_width < 10:
-            canvas_width = 560  # Default width
-        
-        fill_width = int(canvas_width * (self.animation_pos / 100))
-        self.progress_canvas.coords(self.progress_fill, 0, 0, fill_width, 20)
-        
-        # Update percentage
-        self.percent_label.config(text=f"{self.animation_pos}%")
-        
-        # Schedule next animation frame
-        self.root.after(50, self.animate_progress)
-    
-    def set_progress(self, percent, status_text=""):
-        """Set progress percentage and status text"""
-        if status_text:
-            self.status_label.config(text=status_text)
-        
-        # Update progress bar
-        canvas_width = self.progress_canvas.winfo_width()
-        if canvas_width < 10:
-            canvas_width = 560
-        
-        fill_width = int(canvas_width * (percent / 100))
-        self.progress_canvas.coords(self.progress_fill, 0, 0, fill_width, 20)
-        self.percent_label.config(text=f"{percent}%")
-        
-        if percent >= 100:
-            self.percent_label.config(fg=self.COLOR_ACENTO)
-        
-        self.root.update()
-    
-    def centrar_ventana(self):
-        self.root.update_idletasks()
-        width = self.root.winfo_width()
-        height = self.root.winfo_height()
-        x = (self.root.winfo_screenwidth() // 2) - (width // 2)
-        y = (self.root.winfo_screenheight() // 2) - (height // 2)
-        self.root.geometry(f'{width}x{height}+{x}+{y}')
-    
+        self.btn_back = tk.Button(
+            self.btn_frame,
+            text="Volver al Inicio",
+            font=("Segoe UI", 11),
+            bg=self.controller.COLOR_BORDE,
+            relief=tk.FLAT,
+            padx=25,
+            pady=10,
+            command=lambda: self.controller.show_view("HOME")
+        )
+        # Initially hidden
+
     def log(self, mensaje, tipo="INFO"):
-        """Agrega mensaje al log"""
         timestamp = datetime.now().strftime("%H:%M:%S")
         
-        iconos = {
-            "INFO": "ℹ️",
-            "OK": "✅",
-            "WARN": "⚠️",
-            "ERROR": "❌",
-            "PROCESS": "🔄"
-        }
-        
-        colores = {
-            "INFO": "#3498DB",
-            "OK": "#27AE60",
-            "WARN": "#F39C12",
-            "ERROR": "#E74C3C",
-            "PROCESS": "#9B59B6"
-        }
+        iconos = {"INFO": "ℹ️", "OK": "✅", "WARN": "⚠️", "ERROR": "❌", "PROCESS": "🔄"}
+        colores = {"INFO": "#3498DB", "OK": "#27AE60", "WARN": "#F39C12", "ERROR": "#E74C3C", "PROCESS": "#9B59B6"}
         
         icono = iconos.get(tipo, "ℹ️")
         color = colores.get(tipo, "#2C3E50")
         
-        # Enable text widget
         self.log_text.config(state=tk.NORMAL)
-        
-        # Insert timestamp and icon
         self.log_text.insert(tk.END, f"[{timestamp}] ", "timestamp")
         self.log_text.insert(tk.END, f"{icono} ", f"icon_{tipo}")
         self.log_text.insert(tk.END, f"{mensaje}\n", "message")
         
-        # Configure tags
-        self.log_text.tag_config("timestamp", foreground="#95A5A6", font=("Consolas", 9))
-        self.log_text.tag_config(f"icon_{tipo}", foreground=color, font=("Consolas", 9))
-        self.log_text.tag_config("message", foreground=self.COLOR_TEXTO, font=("Consolas", 9))
+        self.log_text.tag_config("timestamp", foreground="#95A5A6")
+        self.log_text.tag_config(f"icon_{tipo}", foreground=color)
+        self.log_text.tag_config("message", foreground=self.controller.COLOR_TEXTO)
         
-        # Scroll to bottom
         self.log_text.see(tk.END)
         self.log_text.config(state=tk.DISABLED)
         
-        # Update status label with last message
         if tipo == "ERROR":
             self.status_label.config(text=f"❌ Error: {mensaje}", fg="#E74C3C")
         elif tipo == "OK":
             self.status_label.config(text=f"✅ {mensaje}", fg="#27AE60")
         else:
-            self.status_label.config(text=mensaje, fg=self.COLOR_PRIMARIO)
+            self.status_label.config(text=mensaje, fg=self.controller.COLOR_PRIMARIO)
         
-        self.root.update()
-    
-    def cerrar(self):
-        """Cierra la ventana"""
-        self.animating = False
-        self.root.destroy()
+        self.update_idletasks()
+
+    def set_progress(self, percent, status_text=None):
+        self.progress_var.set(percent)
+        self.percent_label.config(text=f"{int(percent)}%")
+        if status_text:
+            self.status_label.config(text=status_text)
+        if percent >= 100:
+            self.btn_back.pack(side=tk.RIGHT)
+        self.update_idletasks()
 
 
 def main():
-    """Función principal unificada"""
-    # Cargar configuración
-    configurador = ConfiguradorRutas()
-    if not configurador.cargar_o_crear_config():
-        return
-    
-    rutas = configurador.obtener_rutas()
-    
-    # Bucle principal
-    while True:
-        try:
-            # 1. Seleccionar tipo de proyección
-            selector = VentanaSeleccionTipo()
-            selector.crear_ventana()
-            
-            if selector.tipo_seleccionado is None:
-                break
-            
-            tipo_proyeccion = selector.tipo_seleccionado
-            
-            # 2. Importar módulo correspondiente
-            if tipo_proyeccion == "SEMANAL":
-                import proceso_semanal as proceso_semanal
-                
-                # Ejecutar interfaz semanal
-                interfaz = proceso_semanal.InterfazSemanal()
-                interfaz.crear_ventana()
-                
-                if not interfaz.ejecutar_proceso:
-                    continue
-                
-                # Confirmar ejecución
-                if not messagebox.askyesno(
-                    "Confirmar Ejecución",
-                    "Antes de continuar, asegúrese de:\n\n"
-                    "   ✓ Cerrar el archivo si está abierto\n\n"
-                    "¿Desea continuar?"
-                ):
-                    continue
-                
-                # Ejecutar proceso
-                ventana_prog = VentanaProgreso()
-                try:
-                    procesador = proceso_semanal.ProcesadorSemanal(
-                        fecha_filtrado=interfaz.fecha_seleccionada,
-                        ventana_progreso=ventana_prog,
-                        rutas_config=rutas
-                    )
-                    resultado = procesador.ejecutar_proceso()
-                    ventana_prog.cerrar()
-                except Exception as e:
-                    ventana_prog.cerrar()
-                    messagebox.showerror("Error Fatal", f"Error inesperado:\n\n{str(e)}")
-            
-            elif tipo_proyeccion == "MENSUAL":
-                import proceso_mensual as proceso_mensual
-                
-                # Ejecutar interfaz mensual
-                interfaz = proceso_mensual.InterfazMensual()
-                interfaz.crear_ventana()
-                
-                if not interfaz.ejecutar_proceso:
-                    continue
-                
-                # Ejecutar proceso
-                ventana_prog = VentanaProgreso()
-                try:
-                    procesador = proceso_mensual.ProcesadorMensual(
-                        fecha_filtrado=interfaz.fecha_seleccionada,
-                        ventana_progreso=ventana_prog,
-                        rutas_config=rutas
-                    )
-                    resultado = procesador.ejecutar_proceso()
-                    ventana_prog.cerrar()
-                except Exception as e:
-                    ventana_prog.cerrar()
-                    messagebox.showerror("Error Fatal", f"Error inesperado:\n\n{str(e)}")
-            
-            # Preguntar si desea procesar otra proyección
-            if not messagebox.askyesno(
-                "Proceso Completado",
-                "¿Desea realizar otra proyección?"
-            ):
-                break
-        
-        except Exception as e:
-            messagebox.showerror("Error de Configuración", f"Error al iniciar:\n\n{str(e)}")
-            if not messagebox.askyesno("Error", "¿Desea intentar nuevamente?"):
-                break
+    app = MainApp()
+    app.mainloop()
 
 
 if __name__ == "__main__":
@@ -768,21 +592,6 @@ if __name__ == "__main__":
         import traceback
         error_msg = traceback.format_exc()
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        
-        try:
-            with open("CRASH_LOG.txt", "a", encoding='utf-8') as f:
-                f.write(f"\n{'='*50}\n")
-                f.write(f"FECHA: {timestamp}\n")
-                f.write(f"ERROR:\n{error_msg}\n")
-                f.write(f"{'='*50}\n")
-        except:
-            pass
-        
-        try:
-            root = tk.Tk()
-            aplicar_icono_ventana(root)
-            root.withdraw()
-            messagebox.showerror("Error Fatal", f"Ocurrió un error crítico:\n\n{str(e)}\n\nConsulte CRASH_LOG.txt")
-        except:
-            print(f"Error fatal: {e}")
-            input("Presione Enter para salir...")
+        with open("CRASH_LOG.txt", "a", encoding='utf-8') as f:
+            f.write(f"\n{'='*50}\nFECHA: {timestamp}\nERROR:\n{error_msg}\n{'='*50}\n")
+        messagebox.showerror("Error Fatal", f"Ocurrió un error crítico. Consulte CRASH_LOG.txt")
