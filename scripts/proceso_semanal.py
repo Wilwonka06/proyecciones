@@ -354,20 +354,25 @@ class ProcesadorSemanal:
                 c.Font.Color = 0xFFFFFF
                 c.Interior.Color = 0x993366
                 c.HorizontalAlignment = -4108  # xlCenter
+                # Borde en encabezado
+                c.Borders.LineStyle = 1
                 
             f_act = 2
-            filas_blanco = []
             for _, row in df.iterrows():
                 t = row.get('_TIPO', 'DETALLE')
+
                 if t == 'BLANCO':
-                    filas_blanco.append(f_act)
+                    # Fila vacía: no se escribe nada, no se aplican bordes
                     f_act += 1
                     continue
+
                 if t == 'SUBTOTAL':
                     ws.Cells(f_act, 5).Formula = row['VALOR A PAGAR']
                     ws.Cells(f_act, 6).Value = row['MONEDA']
                     ws.Range(ws.Cells(f_act, 5), ws.Cells(f_act, 6)).Interior.Color = 0xCCFFCC
                     ws.Range(ws.Cells(f_act, 5), ws.Cells(f_act, 6)).Font.Bold = True
+                    # Borde solo en celdas con contenido del subtotal
+                    ws.Range(ws.Cells(f_act, 1), ws.Cells(f_act, 7)).Borders.LineStyle = 1
                 else:
                     for i, col in enumerate(headers, 1):
                         val = row.get(col, '')
@@ -378,6 +383,9 @@ class ProcesadorSemanal:
                     if t == 'DETALLE_UNICO':
                         ws.Range(ws.Cells(f_act, 5), ws.Cells(f_act, 6)).Interior.Color = 0xCCFFCC
                         ws.Range(ws.Cells(f_act, 5), ws.Cells(f_act, 6)).Font.Bold = True
+                    # Borde para DETALLE y DETALLE_UNICO
+                    ws.Range(ws.Cells(f_act, 1), ws.Cells(f_act, 7)).Borders.LineStyle = 1
+
                 ws.Cells(f_act, 5).NumberFormat = "$ #,##0.00"
                 ws.Cells(f_act, 7).NumberFormat = "$ #,##0.00"
                 f_act += 1
@@ -389,15 +397,9 @@ class ProcesadorSemanal:
             ws.Range(ws.Cells(f_act, 4), ws.Cells(f_act, 5)).Interior.Color = 0xCCFFCC
             ws.Range(ws.Cells(f_act, 4), ws.Cells(f_act, 5)).Font.Bold = True
             ws.Cells(f_act, 5).NumberFormat = "$ #,##0.00"
+            ws.Range(ws.Cells(f_act, 4), ws.Cells(f_act, 5)).Borders.LineStyle = 1
 
             ws.Columns.AutoFit()
-
-            rango_datos = ws.Range(ws.Cells(1, 1), ws.Cells(f_act, 7))
-            rango_datos.Borders.LineStyle = 1  # xlContinuous
-            rango_datos.Borders.Weight = 2    # xlMedium
-
-            for fila in filas_blanco:
-                ws.Range(ws.Cells(fila, 1), ws.Cells(fila, 7)).Borders.LineStyle = -4132
 
             # =========================================================
             # TABLA RESUMEN GLOBAL / UNIFIED / AEO  —  Columna J (col 10)
@@ -415,19 +417,17 @@ class ProcesadorSemanal:
 
             # Datos de cada fila: (etiqueta, fórmula, color_fondo_hex_bgr)
             filas_resumen = [
-                ("Global",   formula_sumif(self.marcas_global),                       0xEED7BD),  # Azul claro (BGR)
-                ("Unified",  formula_sumif([m for m in self.marcas_unifed if m != 'AEO']), 0x99E6FF),  # Naranja claro (BGR)
-                ("AEO",      f'=SUMIF({rango_criterio},"AEO",{rango_suma})',           0xCCFFCC),  # Verde claro (BGR)
+                ("Global",   formula_sumif(self.marcas_global),                            0xEED7BD),
+                ("Unified",  formula_sumif([m for m in self.marcas_unifed if m != 'AEO']), 0x99E6FF),
+                ("AEO",      f'=SUMIF({rango_criterio},"AEO",{rango_suma})',               0xCCFFCC),
             ]
 
             for i, (etiqueta, formula, color) in enumerate(filas_resumen):
                 fila = FILA_INI + i
-                # Etiqueta
                 c_label = ws.Cells(fila, COL_LABEL)
                 c_label.Value = etiqueta
                 c_label.Interior.Color = color
                 c_label.Font.Bold = True
-                # Valor
                 c_valor = ws.Cells(fila, COL_VALOR)
                 c_valor.Formula = formula
                 c_valor.Interior.Color = color
@@ -454,8 +454,8 @@ class ProcesadorSemanal:
                 ws.Cells(FILA_INI, COL_LABEL),
                 ws.Cells(fila_total_resumen, COL_VALOR)
             )
-            rango_tabla.Borders.LineStyle = 1   # xlContinuous
-            rango_tabla.Borders.Weight    = 2   # xlThin
+            rango_tabla.Borders.LineStyle = 1
+            rango_tabla.Borders.Weight    = 2
 
             # Autoajustar columnas J y K
             ws.Columns(COL_LABEL).AutoFit()
@@ -475,6 +475,240 @@ class ProcesadorSemanal:
             if excel: excel.Quit()
             pythoncom.CoUninitialize()
 
+    def preparar_df_final(self, df_detalle):
+        """Prepara DataFrame para archivo final con columnas del formato destino"""
+        self.log("Preparando datos para archivo final", "INFO")
+
+        df_final = pd.DataFrame()
+        fecha_proyeccion = self.fecha_filtrado
+
+        df_final['IMPORTADOR']          = df_detalle['IMPORTADOR']
+        df_final['MARCA']               = df_detalle['MARCA']
+        df_final['FECHA DE PAGO']       = fecha_proyeccion.strftime('%m/%d/%Y')
+        df_final['DIA']                 = fecha_proyeccion.day
+        df_final['MES']                 = fecha_proyeccion.month
+        df_final['AÑO']                 = fecha_proyeccion.year
+        df_final['PROVEEDOR']           = df_detalle['PROVEEDOR']
+        df_final['# IMPORTACION']       = df_detalle['NRO. IMPO']
+        df_final['VALOR MONEDA ORIGEN'] = df_detalle['VALOR A PAGAR']
+        df_final['MONEDA']              = df_detalle['MONEDA']
+
+        def calc_valor_usd(row):
+            if str(row['MONEDA']).upper() == 'USD':
+                return row['VALOR A PAGAR']
+            return ''
+
+        def calc_factor(row):
+            if str(row['MONEDA']).upper() == 'USD':
+                return 1
+            return ''
+
+        df_final['VALOR USD']                                   = df_detalle.apply(calc_valor_usd, axis=1)
+        df_final['FACTOR DE CONVERSION']                        = df_detalle.apply(calc_factor, axis=1)
+        df_final['DESCUENTO PRONTO PAGO']                       = 0
+        df_final['FORMA DE PAGO']                               = ''
+        df_final['TIPO DE PAGO']                                = 'CUENTA COMPENSACION'
+        df_final['FECHA DE APERTURA CREDITO -UTILIZACION LC']   = 'N/A'
+        df_final['FECHA DE VENCIMIENTO']                        = 'N/A'
+        df_final['# CREDITO']                                   = 'N/A'
+        df_final['# DEUDA EXTERNA']                             = 'N/A'
+        df_final['NOTA CREDITO']                                = 0.00
+        df_final['OBSERVACIONES']                               = ''
+
+        self.log(f"DataFrame final preparado: {len(df_final)} registros", "OK")
+        return df_final
+
+    def anexar_archivo_final_com(self, df_detalle):
+        """Anexa o reemplaza datos en el archivo final usando COM con validación de duplicados"""
+        self.log("Actualizando archivo final (Verificando duplicados)...", "INFO")
+
+        pythoncom.CoInitialize()
+        excel = None
+        wb = None
+
+        try:
+            excel = win32com.DispatchEx("Excel.Application")
+            excel.Visible = False
+            excel.DisplayAlerts = False
+
+            archivo_path = str(self.ruta_destino_final.absolute())
+            wb = excel.Workbooks.Open(archivo_path)
+
+            # Búsqueda flexible de la hoja destino
+            ws = None
+            for sheet in wb.Sheets:
+                nombre_u = sheet.Name.upper()
+                if 'PAGOS' in nombre_u and 'IMPOR' in nombre_u:
+                    ws = sheet
+                    break
+
+            if not ws:
+                ws = wb.Sheets(1)
+                self.log(f"No se halló hoja 'Pagos importación', usando: '{ws.Name}'", "WARN")
+            else:
+                self.log(f"Escribiendo en hoja: '{ws.Name}'", "OK")
+
+            used_range   = ws.UsedRange
+            filas_totales = used_range.Rows.Count
+
+            start_row       = filas_totales + 1
+            datos_a_escribir = []
+            escribir_todo   = False
+            headers_finales = []
+
+            def normalizar_clave(val):
+                if val is None: return ""
+                s = str(val).strip()
+                try:
+                    if isinstance(val, datetime):
+                        return val.strftime('%m/%d/%Y')
+                    if '/' in s or '-' in s:
+                        ts = pd.to_datetime(s, errors='coerce')
+                        if not pd.isna(ts):
+                            return ts.strftime('%m/%d/%Y')
+                except:
+                    pass
+                return s
+
+            def ordenar_por_importador(df):
+                cols_orden = [c for c in ['IMPORTADOR', 'PROVEEDOR', 'MARCA', '# IMPORTACION'] if c in df.columns]
+                if not cols_orden:
+                    return df.fillna("")
+                return df.fillna("").sort_values(by=cols_orden, kind='mergesort', ignore_index=True)
+
+            if filas_totales > 1:
+                self.log("Leyendo registros existentes...", "INFO")
+                raw_data = list(used_range.Value)
+                headers  = [str(h).strip().upper() if h is not None else f"COL_{i}"
+                            for i, h in enumerate(raw_data[0])]
+
+                cols_clave    = ['FECHA DE PAGO', 'PROVEEDOR', 'IMPORTADOR', 'MARCA', '# IMPORTACION']
+                indices_clave = {col: headers.index(col) for col in cols_clave if col in headers}
+
+                if len(indices_clave) == 5:
+                    data_rows = [list(row) for row in raw_data[1:]]
+                    self.log(f"Registros previos: {len(data_rows)}", "INFO")
+
+                    claves_nuevas = set()
+                    for _, row in df_detalle.iterrows():
+                        key = (
+                            normalizar_clave(row.get('FECHA DE PAGO')),
+                            normalizar_clave(row.get('PROVEEDOR')),
+                            normalizar_clave(row.get('IMPORTADOR')),
+                            normalizar_clave(row.get('MARCA')),
+                            normalizar_clave(row.get('# IMPORTACION'))
+                        )
+                        claves_nuevas.add(key)
+
+                    idx_fecha = indices_clave['FECHA DE PAGO']
+                    idx_prov  = indices_clave['PROVEEDOR']
+                    idx_imp   = indices_clave['IMPORTADOR']
+                    idx_marca = indices_clave['MARCA']
+                    idx_nro   = indices_clave['# IMPORTACION']
+                    max_idx   = max(idx_fecha, idx_prov, idx_imp, idx_marca, idx_nro)
+
+                    rows_a_conservar     = []
+                    duplicados_encontrados = 0
+
+                    for row in data_rows:
+                        try:
+                            if len(row) <= max_idx:
+                                rows_a_conservar.append(row)
+                                continue
+                            key_existente = (
+                                normalizar_clave(row[idx_fecha]),
+                                normalizar_clave(row[idx_prov]),
+                                normalizar_clave(row[idx_imp]),
+                                normalizar_clave(row[idx_marca]),
+                                normalizar_clave(row[idx_nro])
+                            )
+                            if key_existente in claves_nuevas:
+                                duplicados_encontrados += 1
+                            else:
+                                rows_a_conservar.append(row)
+                        except Exception:
+                            rows_a_conservar.append(row)
+
+                    if duplicados_encontrados > 0:
+                        self.log(f"Reemplazando {duplicados_encontrados} registros duplicados.", "OK")
+
+                        df_conservado       = pd.DataFrame(rows_a_conservar, columns=headers, dtype=object)
+                        df_detalle_obj      = df_detalle.astype(object)
+                        df_final_combinado  = pd.concat([df_conservado, df_detalle_obj], ignore_index=True)
+
+                        cols_finales = list(headers)
+                        for col in df_final_combinado.columns:
+                            if col not in cols_finales:
+                                cols_finales.append(col)
+
+                        df_final_combinado  = df_final_combinado.reindex(columns=cols_finales)
+                        df_final_ordenado   = ordenar_por_importador(df_final_combinado)
+
+                        datos_a_escribir = df_final_ordenado.values.tolist()
+                        headers_finales  = cols_finales
+                        escribir_todo    = True
+                        start_row        = 2
+                    else:
+                        self.log("Sin duplicados. Agregando al final.", "INFO")
+                        df_tmp = ordenar_por_importador(df_detalle)
+                        datos_a_escribir = df_tmp.values.tolist()
+                else:
+                    self.log(f"Faltan columnas clave. Agregando al final.", "WARN")
+                    df_tmp = ordenar_por_importador(df_detalle)
+                    datos_a_escribir = df_tmp.values.tolist()
+            else:
+                self.log("Archivo destino vacío. Escribiendo desde fila 2.", "INFO")
+                df_tmp = ordenar_por_importador(df_detalle)
+                datos_a_escribir = df_tmp.values.tolist()
+                start_row = 2
+
+            if not datos_a_escribir:
+                self.log("No hay datos para escribir.", "WARN")
+                return
+
+            if escribir_todo:
+                ws.Range(
+                    ws.Cells(2, 1),
+                    ws.Cells(filas_totales + 1000, len(headers_finales) + 10)
+                ).ClearContents()
+                if len(headers_finales) > len(headers):
+                    ws.Range(ws.Cells(1, 1), ws.Cells(1, len(headers_finales))).Value = headers_finales
+
+            self.log(f"Escribiendo {len(datos_a_escribir)} registros desde fila {start_row}", "INFO")
+
+            num_filas = len(datos_a_escribir)
+            num_cols  = len(datos_a_escribir[0])
+            destino   = ws.Range(
+                ws.Cells(start_row, 1),
+                ws.Cells(start_row + num_filas - 1, num_cols)
+            )
+            destino.Value = datos_a_escribir
+
+            wb.Save()
+            self.log(f"Datos guardados en {self.ruta_destino_final.name}", "OK")
+
+        except Exception as e:
+            self.log(f"Error crítico al anexar: {str(e)}", "ERROR")
+            raise
+
+        finally:
+            if wb:
+                try: wb.Close(SaveChanges=True)
+                except: pass
+            if excel:
+                try: excel.Quit()
+                except: pass
+            pythoncom.CoUninitialize()
+
+    def agregar_a_archivo_final(self, df_detalle):
+        """Orquesta la preparación y escritura en el archivo final"""
+        try:
+            df_final = self.preparar_df_final(df_detalle)
+            self.anexar_archivo_final_com(df_final)
+        except Exception as e:
+            self.log(f"Error en archivo final: {str(e)}", "ERROR")
+            raise
+
     def ejecutar_proceso(self):
         self.set_progress(10, "Iniciando...")
         try:
@@ -488,8 +722,10 @@ class ProcesadorSemanal:
             self.set_progress(70, "Preparando proyección...")
             df_s = self.preparar_datos_segunda_hoja(df_f)
             df_a = self.agrupar_y_calcular(df_s)
-            self.set_progress(85, "Guardando archivo...")
+            self.set_progress(85, "Guardando archivo de proyección...")
             self.guardar_proyeccion_com(ruta, df_a, self.crear_nombre_segunda_hoja(self.fecha_filtrado))
+            self.set_progress(93, "Actualizando archivo final...")
+            self.agregar_a_archivo_final(df_s)
             self.set_progress(100, "Completado")
             return True
         except Exception as e:
